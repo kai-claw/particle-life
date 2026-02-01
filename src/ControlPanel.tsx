@@ -1,302 +1,262 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { SimulationConfig } from './types';
 import { PARTICLE_COLORS, PARTICLE_TYPES } from './types';
 import { PRESETS } from './presets';
+import type { ParticleSimulation } from './simulation';
 
 interface ControlPanelProps {
   config: SimulationConfig;
   onConfigChange: (config: SimulationConfig) => void;
   isRunning: boolean;
   onToggleRunning: () => void;
+  onReset: () => void;
+  simulation: ParticleSimulation | null;
 }
+
+const Slider: React.FC<{
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  format?: (v: number) => string;
+  onChange: (v: number) => void;
+}> = ({ label, value, min, max, step, format, onChange }) => (
+  <div className="slider-row">
+    <div className="slider-header">
+      <span className="slider-label">{label}</span>
+      <span className="slider-value">{format ? format(value) : value}</span>
+    </div>
+    <input
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={(e) => onChange(parseFloat(e.target.value))}
+    />
+  </div>
+);
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
   config,
   onConfigChange,
   isRunning,
   onToggleRunning,
+  onReset,
+  simulation,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState<'controls' | 'rules' | 'presets'>('controls');
 
-  const updateConfig = (updates: Partial<SimulationConfig>) => {
-    onConfigChange({ ...config, ...updates });
-  };
+  const updateConfig = useCallback(
+    (updates: Partial<SimulationConfig>) => {
+      onConfigChange({ ...config, rules: config.rules.map(r => [...r]), ...updates });
+    },
+    [config, onConfigChange]
+  );
 
-  const handleRuleChange = (fromType: number, toType: number, value: number) => {
-    const newRules = [...config.rules];
-    newRules[fromType][toType] = value;
-    updateConfig({ rules: newRules });
-  };
+  const handleRuleChange = useCallback(
+    (from: number, to: number, value: number) => {
+      const newRules = config.rules.map(r => [...r]);
+      newRules[from][to] = Math.max(-1, Math.min(1, value));
+      onConfigChange({ ...config, rules: newRules });
+    },
+    [config, onConfigChange]
+  );
 
-  const randomizeRules = () => {
+  const randomizeRules = useCallback(() => {
     const newRules = Array.from({ length: PARTICLE_TYPES }, () =>
-      Array.from({ length: PARTICLE_TYPES }, () => (Math.random() - 0.5) * 2)
+      Array.from({ length: PARTICLE_TYPES }, () =>
+        Math.round((Math.random() * 2 - 1) * 100) / 100
+      )
     );
-    updateConfig({ rules: newRules });
-  };
+    onConfigChange({ ...config, rules: newRules });
+  }, [config, onConfigChange]);
 
-  const applyPreset = (presetConfig: Partial<SimulationConfig>) => {
-    onConfigChange({ ...config, ...presetConfig });
-  };
+  const applyPreset = useCallback(
+    (presetConfig: Partial<SimulationConfig>) => {
+      onConfigChange({ ...config, ...presetConfig });
+    },
+    [config, onConfigChange]
+  );
+
+  const fps = simulation?.fps ?? 0;
 
   if (!isExpanded) {
     return (
-      <div style={{ position: 'fixed', top: 20, left: 20, zIndex: 10 }}>
-        <button
-          onClick={() => setIsExpanded(true)}
-          style={{
-            background: 'rgba(255, 255, 255, 0.1)',
-            border: '1px solid rgba(255, 255, 255, 0.3)',
-            color: 'white',
-            padding: '10px 15px',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            backdropFilter: 'blur(10px)',
-          }}
-        >
-          ☰ Controls
-        </button>
-      </div>
+      <button
+        className="panel-toggle"
+        onClick={() => setIsExpanded(true)}
+      >
+        ☰ Controls
+      </button>
     );
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 20,
-        left: 20,
-        width: 350,
-        background: 'rgba(0, 0, 0, 0.85)',
-        border: '1px solid rgba(255, 255, 255, 0.3)',
-        borderRadius: '10px',
-        color: 'white',
-        backdropFilter: 'blur(10px)',
-        zIndex: 10,
-        maxHeight: 'calc(100vh - 40px)',
-        overflowY: 'auto',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '15px 20px',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: '18px' }}>Particle Life</h2>
+    <div className="control-panel">
+      {/* Header */}
+      <div className="panel-header">
+        <div className="panel-title">
+          <h2>Particle Life</h2>
+          <span className="fps-badge">{fps} FPS</span>
+        </div>
+        <button className="close-btn" onClick={() => setIsExpanded(false)}>×</button>
+      </div>
+
+      {/* Action buttons */}
+      <div className="panel-actions">
         <button
-          onClick={() => setIsExpanded(false)}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'white',
-            fontSize: '18px',
-            cursor: 'pointer',
-          }}
+          className={`btn-primary ${isRunning ? 'btn-pause' : 'btn-play'}`}
+          onClick={onToggleRunning}
         >
-          ×
+          {isRunning ? '⏸ Pause' : '▶ Play'}
+        </button>
+        <button className="btn-secondary" onClick={onReset}>
+          ↺ Reset
+        </button>
+        <button className="btn-secondary" onClick={randomizeRules}>
+          🎲 Randomize
         </button>
       </div>
 
-      <div style={{ padding: '15px 20px' }}>
-        <button
-          onClick={onToggleRunning}
-          style={{
-            width: '100%',
-            padding: '12px',
-            background: isRunning ? '#ff4444' : '#44ff44',
-            color: 'black',
-            border: 'none',
-            borderRadius: '5px',
-            fontSize: '16px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            marginBottom: '15px',
-          }}
-        >
-          {isRunning ? 'Pause' : 'Start'}
-        </button>
+      {/* Tabs */}
+      <div className="tab-bar">
+        {(['controls', 'rules', 'presets'] as const).map((tab) => (
+          <button
+            key={tab}
+            className={`tab ${activeTab === tab ? 'tab-active' : ''}`}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab === 'controls' ? '⚙' : tab === 'rules' ? '🧪' : '📋'}{' '}
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
+      </div>
 
-        <div style={{ display: 'flex', marginBottom: '15px' }}>
-          {(['controls', 'rules', 'presets'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                flex: 1,
-                padding: '8px',
-                background: activeTab === tab ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-                border: 'none',
-                color: 'white',
-                cursor: 'pointer',
-                textTransform: 'capitalize',
-              }}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
+      {/* Tab content */}
+      <div className="tab-content">
         {activeTab === 'controls' && (
-          <div>
-            <div style={{ marginBottom: '15px' }}>
-              <label>Particles: {config.particleCount}</label>
-              <input
-                type="range"
-                min="500"
-                max="5000"
-                step="100"
-                value={config.particleCount}
-                onChange={(e) => updateConfig({ particleCount: parseInt(e.target.value) })}
-                style={{ width: '100%' }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '15px' }}>
-              <label>Speed: {config.speed.toFixed(1)}</label>
-              <input
-                type="range"
-                min="0.1"
-                max="3.0"
-                step="0.1"
-                value={config.speed}
-                onChange={(e) => updateConfig({ speed: parseFloat(e.target.value) })}
-                style={{ width: '100%' }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '15px' }}>
-              <label>Friction: {config.friction.toFixed(3)}</label>
-              <input
-                type="range"
-                min="0.001"
-                max="0.1"
-                step="0.001"
-                value={config.friction}
-                onChange={(e) => updateConfig({ friction: parseFloat(e.target.value) })}
-                style={{ width: '100%' }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '15px' }}>
-              <label>Radius: {config.radius}</label>
-              <input
-                type="range"
-                min="30"
-                max="200"
-                step="5"
-                value={config.radius}
-                onChange={(e) => updateConfig({ radius: parseInt(e.target.value) })}
-                style={{ width: '100%' }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '15px' }}>
-              <label>Force: {config.forceStrength.toFixed(2)}</label>
-              <input
-                type="range"
-                min="0.1"
-                max="2.0"
-                step="0.1"
-                value={config.forceStrength}
-                onChange={(e) => updateConfig({ forceStrength: parseFloat(e.target.value) })}
-                style={{ width: '100%' }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '15px' }}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={config.trailEffect}
-                  onChange={(e) => updateConfig({ trailEffect: e.target.checked })}
-                  style={{ marginRight: '8px' }}
-                />
-                Trail Effect
-              </label>
-            </div>
+          <div className="controls-tab">
+            <Slider
+              label="Particles"
+              value={config.particleCount}
+              min={200}
+              max={5000}
+              step={100}
+              onChange={(v) => updateConfig({ particleCount: v })}
+            />
+            <Slider
+              label="Speed"
+              value={config.speed}
+              min={0.1}
+              max={3.0}
+              step={0.1}
+              format={(v) => v.toFixed(1)}
+              onChange={(v) => updateConfig({ speed: v })}
+            />
+            <Slider
+              label="Friction"
+              value={config.friction}
+              min={0.01}
+              max={0.9}
+              step={0.01}
+              format={(v) => v.toFixed(2)}
+              onChange={(v) => updateConfig({ friction: v })}
+            />
+            <Slider
+              label="Radius"
+              value={config.maxRadius}
+              min={30}
+              max={200}
+              step={5}
+              onChange={(v) => updateConfig({ maxRadius: v })}
+            />
+            <Slider
+              label="Force"
+              value={config.forceStrength}
+              min={0.1}
+              max={3.0}
+              step={0.1}
+              format={(v) => v.toFixed(1)}
+              onChange={(v) => updateConfig({ forceStrength: v })}
+            />
+            <Slider
+              label="Trail"
+              value={config.trailEffect}
+              min={0}
+              max={0.3}
+              step={0.01}
+              format={(v) => v === 0 ? 'Off' : v.toFixed(2)}
+              onChange={(v) => updateConfig({ trailEffect: v })}
+            />
+            <Slider
+              label="Dot Size"
+              value={config.particleSize}
+              min={1}
+              max={5}
+              step={0.5}
+              format={(v) => v.toFixed(1)}
+              onChange={(v) => updateConfig({ particleSize: v })}
+            />
           </div>
         )}
 
         {activeTab === 'rules' && (
-          <div>
-            <div style={{ marginBottom: '15px' }}>
-              <button
-                onClick={randomizeRules}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  border: 'none',
-                  color: 'white',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                }}
-              >
-                🎲 Randomize Rules
-              </button>
-            </div>
-
-            <div style={{ fontSize: '12px', marginBottom: '10px' }}>
-              Attraction/Repulsion Matrix (-1 to 1)
-            </div>
+          <div className="rules-tab">
+            <p className="rules-help">
+              Each cell controls how <strong>row color</strong> reacts to <strong>column color</strong>.
+              <br />Positive = attract · Negative = repel
+            </p>
 
             <div
+              className="rule-matrix"
               style={{
-                display: 'grid',
-                gridTemplateColumns: `30px repeat(${PARTICLE_TYPES}, 1fr)`,
-                gap: '2px',
-                fontSize: '10px',
+                gridTemplateColumns: `32px repeat(${PARTICLE_TYPES}, 1fr)`,
               }}
             >
-              <div></div>
+              {/* Column headers */}
+              <div />
               {PARTICLE_COLORS.map((color, i) => (
                 <div
-                  key={i}
-                  style={{
-                    background: color,
-                    height: '20px',
-                    borderRadius: '2px',
-                  }}
+                  key={`ch-${i}`}
+                  className="rule-dot-header"
+                  style={{ background: color }}
                 />
               ))}
 
+              {/* Matrix rows */}
               {config.rules.map((row, fromType) => (
-                <React.Fragment key={fromType}>
+                <React.Fragment key={`row-${fromType}`}>
                   <div
-                    style={{
-                      background: PARTICLE_COLORS[fromType],
-                      height: '25px',
-                      borderRadius: '2px',
-                    }}
+                    className="rule-dot-header"
+                    style={{ background: PARTICLE_COLORS[fromType] }}
                   />
-                  {row.map((value, toType) => (
-                    <input
-                      key={toType}
-                      type="number"
-                      min="-1"
-                      max="1"
-                      step="0.1"
-                      value={value.toFixed(1)}
-                      onChange={(e) =>
-                        handleRuleChange(fromType, toType, parseFloat(e.target.value) || 0)
-                      }
-                      style={{
-                        width: '100%',
-                        height: '25px',
-                        background: 'rgba(255, 255, 255, 0.1)',
-                        border: 'none',
-                        color: 'white',
-                        fontSize: '9px',
-                        textAlign: 'center',
-                        borderRadius: '2px',
-                      }}
-                    />
-                  ))}
+                  {row.map((value, toType) => {
+                    const intensity = Math.abs(value);
+                    const bg =
+                      value > 0
+                        ? `rgba(50, 255, 100, ${intensity * 0.4})`
+                        : value < 0
+                        ? `rgba(255, 60, 60, ${intensity * 0.4})`
+                        : 'rgba(255,255,255,0.05)';
+                    return (
+                      <input
+                        key={`${fromType}-${toType}`}
+                        type="number"
+                        min="-1"
+                        max="1"
+                        step="0.1"
+                        value={value.toFixed(1)}
+                        onChange={(e) =>
+                          handleRuleChange(fromType, toType, parseFloat(e.target.value) || 0)
+                        }
+                        className="rule-cell"
+                        style={{ background: bg }}
+                      />
+                    );
+                  })}
                 </React.Fragment>
               ))}
             </div>
@@ -304,26 +264,19 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         )}
 
         {activeTab === 'presets' && (
-          <div>
-            {PRESETS.map((preset, index) => (
-              <div
-                key={index}
-                style={{
-                  marginBottom: '12px',
-                  padding: '12px',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                }}
+          <div className="presets-tab">
+            {PRESETS.map((preset, i) => (
+              <button
+                key={i}
+                className="preset-card"
                 onClick={() => applyPreset(preset.config)}
               >
-                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-                  {preset.name}
+                <span className="preset-emoji">{preset.emoji}</span>
+                <div className="preset-info">
+                  <div className="preset-name">{preset.name}</div>
+                  <div className="preset-desc">{preset.description}</div>
                 </div>
-                <div style={{ fontSize: '12px', opacity: 0.8 }}>
-                  {preset.description}
-                </div>
-              </div>
+              </button>
             ))}
           </div>
         )}

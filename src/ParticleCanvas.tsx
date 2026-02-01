@@ -1,11 +1,11 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { ParticleSimulation } from './simulation';
 import type { SimulationConfig } from './types';
 
 interface ParticleCanvasProps {
   config: SimulationConfig;
   isRunning: boolean;
-  onSimulationRef: (simulation: ParticleSimulation | null) => void;
+  onSimulationRef: (sim: ParticleSimulation | null) => void;
 }
 
 export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
@@ -14,72 +14,77 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
   onSimulationRef,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const simulationRef = useRef<ParticleSimulation | null>(null);
-  const animationIdRef = useRef<number | null>(null);
+  const simRef = useRef<ParticleSimulation | null>(null);
+  const rafRef = useRef<number>(0);
+  const configRef = useRef(config);
+  const runningRef = useRef(isRunning);
 
-  const resizeCanvas = useCallback(() => {
+  // Keep refs in sync
+  configRef.current = config;
+  runningRef.current = isRunning;
+
+  // Initialize simulation once
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    
-    if (simulationRef.current) {
-      simulationRef.current.setDimensions(canvas.width, canvas.height);
-    }
-  }, []);
 
-  const animate = useCallback(() => {
-    if (!isRunning || !simulationRef.current || !canvasRef.current) return;
+    const sim = new ParticleSimulation(config);
+    sim.setDimensions(canvas.width, canvas.height);
+    sim.initializeParticles();
+    simRef.current = sim;
+    onSimulationRef(sim);
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const onResize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      sim.setDimensions(canvas.width, canvas.height);
+    };
 
-    simulationRef.current.update();
-    simulationRef.current.render(ctx);
-
-    animationIdRef.current = requestAnimationFrame(animate);
-  }, [isRunning]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const simulation = new ParticleSimulation(config);
-    simulationRef.current = simulation;
-    onSimulationRef(simulation);
-
-    resizeCanvas();
-    simulation.initializeParticles();
+    window.addEventListener('resize', onResize);
 
     return () => {
-      if (animationIdRef.current) {
-        cancelAnimationFrame(animationIdRef.current);
-      }
+      window.removeEventListener('resize', onResize);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      simRef.current = null;
       onSimulationRef(null);
     };
-  }, [config, onSimulationRef, resizeCanvas]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Push config updates WITHOUT reinitializing
   useEffect(() => {
-    if (simulationRef.current) {
-      simulationRef.current.updateConfig(config);
+    if (simRef.current) {
+      simRef.current.updateConfig(config);
     }
   }, [config]);
 
-  useEffect(() => {
-    if (isRunning) {
-      animate();
-    } else if (animationIdRef.current) {
-      cancelAnimationFrame(animationIdRef.current);
-      animationIdRef.current = null;
-    }
-  }, [isRunning, animate]);
+  // Animation loop — uses refs to avoid dependency churn
+  const animate = useCallback(() => {
+    const sim = simRef.current;
+    const canvas = canvasRef.current;
+    if (!sim || !canvas) return;
 
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    if (runningRef.current) {
+      sim.update();
+    }
+    sim.render(ctx);
+
+    rafRef.current = requestAnimationFrame(animate);
+  }, []);
+
+  // Start/stop animation
   useEffect(() => {
-    window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
-  }, [resizeCanvas]);
+    rafRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [animate]);
 
   return (
     <canvas
@@ -90,8 +95,7 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
         left: 0,
         width: '100vw',
         height: '100vh',
-        background: '#000000',
-        cursor: 'none',
+        background: '#000',
         zIndex: 1,
       }}
     />

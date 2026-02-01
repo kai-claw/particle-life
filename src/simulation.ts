@@ -1,12 +1,14 @@
 import type { Particle, SimulationConfig } from './types';
 import { PARTICLE_TYPES, PARTICLE_COLORS } from './types';
 
-export class SpatialHash {
+/**
+ * Spatial hash grid for O(n) neighbor lookups instead of O(n²).
+ */
+class SpatialHash {
   private cellSize: number;
-  private grid: Map<string, Particle[]>;
-  
-  constructor(cellSize: number) {
-    this.cellSize = cellSize;
+  private grid: Map<number, Particle[]>;
+  constructor(cellSize: number, _w: number, _h: number) {
+    this.cellSize = Math.max(cellSize, 1);
     this.grid = new Map();
   }
 
@@ -14,63 +16,115 @@ export class SpatialHash {
     this.grid.clear();
   }
 
-  add(particle: Particle) {
-    const key = this.getKey(particle.x, particle.y);
-    if (!this.grid.has(key)) {
-      this.grid.set(key, []);
+  private key(cx: number, cy: number): number {
+    // Pack two 16-bit ints into one number — avoids string keys
+    return ((cx & 0xffff) << 16) | (cy & 0xffff);
+  }
+
+  add(p: Particle) {
+    const cx = Math.floor(p.x / this.cellSize);
+    const cy = Math.floor(p.y / this.cellSize);
+    const k = this.key(cx, cy);
+    let list = this.grid.get(k);
+    if (!list) {
+      list = [];
+      this.grid.set(k, list);
     }
-    this.grid.get(key)!.push(particle);
+    list.push(p);
   }
 
   getNearby(x: number, y: number): Particle[] {
-    const nearby: Particle[] = [];
-    const cellX = Math.floor(x / this.cellSize);
-    const cellY = Math.floor(y / this.cellSize);
-
-    // Check 9 cells (3x3 grid around the particle)
+    const cx = Math.floor(x / this.cellSize);
+    const cy = Math.floor(y / this.cellSize);
+    const out: Particle[] = [];
     for (let dx = -1; dx <= 1; dx++) {
       for (let dy = -1; dy <= 1; dy++) {
-        const key = `${cellX + dx},${cellY + dy}`;
-        const particles = this.grid.get(key);
-        if (particles) {
-          nearby.push(...particles);
+        const list = this.grid.get(this.key(cx + dx, cy + dy));
+        if (list) {
+          for (let i = 0; i < list.length; i++) out.push(list[i]);
         }
       }
     }
-    return nearby;
-  }
-
-  private getKey(x: number, y: number): string {
-    const cellX = Math.floor(x / this.cellSize);
-    const cellY = Math.floor(y / this.cellSize);
-    return `${cellX},${cellY}`;
+    return out;
   }
 }
 
+/**
+ * The standard Particle Life force function.
+ * 
+ * At very close range (d < beta) → repulsion that prevents overlap.
+ * At medium range (beta < d < 1) → attraction or repulsion based on the rule value.
+ * Beyond the radius → no force.
+ * 
+ * This is what creates the beautiful emergent organic structures.
+ */
+function particleLifeForce(normalizedDist: number, attraction: number): number {
+  const beta = 0.3; // boundary between repulsion and attraction zones
+
+  if (normalizedDist < beta) {
+    // Strong repulsion at close range, linearly goes from -1 to 0
+    return normalizedDist / beta - 1;
+  }
+
+  if (normalizedDist < 1.0) {
+    // Bell curve shaped attraction/repulsion
+    // Peaks at midpoint between beta and 1.0
+    return attraction * (1 - Math.abs(2 * normalizedDist - 1 - beta) / (1 - beta));
+  }
+
+  return 0;
+}
+
 export class ParticleSimulation {
-  private particles: Particle[] = [];
+  particles: Particle[] = [];
   private config: SimulationConfig;
   private width: number = 0;
   private height: number = 0;
-  private spatialHash: SpatialHash;
+  private spatialHash: SpatialHash | null = null;
+  private frameCount: number = 0;
+  private lastFpsTime: number = 0;
+  fps: number = 0;
 
   constructor(config: SimulationConfig) {
-    this.config = config;
-    this.spatialHash = new SpatialHash(config.radius);
+    this.config = { ...config, rules: config.rules.map(r => [...r]) };
   }
 
   setDimensions(width: number, height: number) {
     this.width = width;
     this.height = height;
+    this.spatialHash = new SpatialHash(this.config.maxRadius, width, height);
   }
 
-  updateConfig(config: SimulationConfig) {
-    this.config = config;
-    this.spatialHash = new SpatialHash(config.radius);
-    
-    // Adjust particle count if needed
-    if (this.particles.length !== config.particleCount) {
-      this.initializeParticles();
+  updateConfig(newConfig: SimulationConfig) {
+    const oldCount = this.config.particleCount;
+    this.config = { ...newConfig, rules: newConfig.rules.map(r => [...r]) };
+
+    if (this.width > 0) {
+      this.spatialHash = new SpatialHash(this.config.maxRadius, this.width, this.height);
+    }
+
+    // Only adjust particles if count actually changed
+    if (this.particles.length > 0 && oldCount !== newConfig.particleCount) {
+      this.adjustParticleCount(newConfig.particleCount);
+    }
+  }
+
+  private adjustParticleCount(target: number) {
+    const current = this.particles.length;
+    if (target > current) {
+      // Add particles
+      for (let i = current; i < target; i++) {
+        this.particles.push({
+          x: Math.random() * this.width,
+          y: Math.random() * this.height,
+          vx: 0,
+          vy: 0,
+          type: Math.floor(Math.random() * PARTICLE_TYPES),
+        });
+      }
+    } else if (target < current) {
+      // Remove excess (from the end)
+      this.particles.length = target;
     }
   }
 
@@ -88,99 +142,118 @@ export class ParticleSimulation {
   }
 
   update() {
+    if (!this.spatialHash || this.width === 0) return;
+
+    // FPS tracking
+    this.frameCount++;
+    const now = performance.now();
+    if (now - this.lastFpsTime >= 1000) {
+      this.fps = this.frameCount;
+      this.frameCount = 0;
+      this.lastFpsTime = now;
+    }
+
+    const hash = this.spatialHash;
+    const { speed, friction, maxRadius, forceStrength, rules } = this.config;
+    const w = this.width;
+    const h = this.height;
+    const halfW = w / 2;
+    const halfH = h / 2;
+    const rSq = maxRadius * maxRadius;
+    const invR = 1 / maxRadius;
+    const dt = speed * 0.5; // timestep scaled by speed
+
     // Rebuild spatial hash
-    this.spatialHash.clear();
-    for (const particle of this.particles) {
-      this.spatialHash.add(particle);
+    hash.clear();
+    const particles = this.particles;
+    for (let i = 0; i < particles.length; i++) {
+      hash.add(particles[i]);
     }
 
-    // Update each particle
-    for (const particle of this.particles) {
-      this.updateParticle(particle);
-    }
+    // Update forces
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      const nearby = hash.getNearby(p.x, p.y);
+      const pRules = rules[p.type];
 
-    // Apply velocities and wrap around
-    for (const particle of this.particles) {
-      particle.x += particle.vx * this.config.speed;
-      particle.y += particle.vy * this.config.speed;
+      let fx = 0;
+      let fy = 0;
 
-      // Apply friction
-      particle.vx *= (1 - this.config.friction);
-      particle.vy *= (1 - this.config.friction);
+      for (let j = 0; j < nearby.length; j++) {
+        const other = nearby[j];
+        if (other === p) continue;
 
-      // Wrap around (toroidal topology)
-      if (particle.x < 0) particle.x = this.width;
-      if (particle.x > this.width) particle.x = 0;
-      if (particle.y < 0) particle.y = this.height;
-      if (particle.y > this.height) particle.y = 0;
-    }
-  }
+        // Distance with toroidal wrapping
+        let dx = other.x - p.x;
+        let dy = other.y - p.y;
 
-  private updateParticle(particle: Particle) {
-    const nearby = this.spatialHash.getNearby(particle.x, particle.y);
-    
-    for (const other of nearby) {
-      if (other === particle) continue;
+        if (dx > halfW) dx -= w;
+        else if (dx < -halfW) dx += w;
+        if (dy > halfH) dy -= h;
+        else if (dy < -halfH) dy += h;
 
-      const dx = other.x - particle.x;
-      const dy = other.y - particle.y;
-      
-      // Handle wrapping for distance calculation
-      const wrappedDx = this.wrapDistance(dx, this.width);
-      const wrappedDy = this.wrapDistance(dy, this.height);
-      
-      const distSq = wrappedDx * wrappedDx + wrappedDy * wrappedDy;
-      const radiusSq = this.config.radius * this.config.radius;
+        const dSq = dx * dx + dy * dy;
+        if (dSq >= rSq || dSq < 0.01) continue;
 
-      if (distSq > 0 && distSq < radiusSq) {
-        const dist = Math.sqrt(distSq);
-        const force = this.config.rules[particle.type][other.type] * this.config.forceStrength;
-        
-        // Normalize and apply force
-        const fx = (wrappedDx / dist) * force;
-        const fy = (wrappedDy / dist) * force;
-        
-        particle.vx += fx;
-        particle.vy += fy;
+        const d = Math.sqrt(dSq);
+        const nd = d * invR; // normalized distance 0..1
+        const attraction = pRules[other.type];
+        const f = particleLifeForce(nd, attraction) * forceStrength;
+
+        fx += (dx / d) * f;
+        fy += (dy / d) * f;
       }
-    }
-  }
 
-  private wrapDistance(d: number, max: number): number {
-    const half = max / 2;
-    if (d > half) return d - max;
-    if (d < -half) return d + max;
-    return d;
+      // Apply forces
+      p.vx = p.vx * (1 - friction) + fx * dt;
+      p.vy = p.vy * (1 - friction) + fy * dt;
+    }
+
+    // Move particles
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // Wrap toroidally
+      if (p.x < 0) p.x += w;
+      else if (p.x >= w) p.x -= w;
+      if (p.y < 0) p.y += h;
+      else if (p.y >= h) p.y -= h;
+    }
   }
 
   render(ctx: CanvasRenderingContext2D) {
-    // Trail effect - slight fade instead of full clear
-    if (this.config.trailEffect) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-      ctx.fillRect(0, 0, this.width, this.height);
+    const { trailEffect, particleSize } = this.config;
+    const w = this.width;
+    const h = this.height;
+
+    // Trail/clear
+    if (trailEffect > 0) {
+      ctx.fillStyle = `rgba(0, 0, 0, ${trailEffect})`;
+      ctx.fillRect(0, 0, w, h);
     } else {
       ctx.fillStyle = '#000000';
-      ctx.fillRect(0, 0, this.width, this.height);
+      ctx.fillRect(0, 0, w, h);
     }
 
-    // Render particles
-    for (const particle of this.particles) {
-      ctx.fillStyle = PARTICLE_COLORS[particle.type];
+    // Batch render by type for fewer state changes
+    for (let t = 0; t < PARTICLE_TYPES; t++) {
+      ctx.fillStyle = PARTICLE_COLORS[t];
       ctx.beginPath();
-      ctx.arc(particle.x, particle.y, 2, 0, Math.PI * 2);
+
+      for (let i = 0; i < this.particles.length; i++) {
+        const p = this.particles[i];
+        if (p.type !== t) continue;
+        ctx.moveTo(p.x + particleSize, p.y);
+        ctx.arc(p.x, p.y, particleSize, 0, Math.PI * 2);
+      }
+
       ctx.fill();
     }
   }
 
-  getParticles(): Particle[] {
-    return this.particles;
-  }
-
-  randomizeRules() {
-    for (let i = 0; i < PARTICLE_TYPES; i++) {
-      for (let j = 0; j < PARTICLE_TYPES; j++) {
-        this.config.rules[i][j] = (Math.random() - 0.5) * 2; // -1 to 1
-      }
-    }
+  getConfig(): SimulationConfig {
+    return this.config;
   }
 }

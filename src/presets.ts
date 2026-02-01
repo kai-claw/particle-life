@@ -1,113 +1,177 @@
 import type { SimulationConfig } from './types';
-import { DEFAULT_CONFIG } from './types';
+import { DEFAULT_CONFIG, PARTICLE_TYPES } from './types';
 
 export interface Preset {
   name: string;
+  emoji: string;
   description: string;
   config: Partial<SimulationConfig>;
 }
 
+/** Generate a random rule matrix */
+function randomRules(): number[][] {
+  return Array.from({ length: PARTICLE_TYPES }, () =>
+    Array.from({ length: PARTICLE_TYPES }, () =>
+      Math.round((Math.random() * 2 - 1) * 100) / 100
+    )
+  );
+}
+
 export const PRESETS: Preset[] = [
   {
+    name: 'Primordial Soup',
+    emoji: '🧬',
+    description: 'Organic structures emerge from simple attraction rules',
+    config: {
+      particleCount: 1500,
+      speed: 1.0,
+      friction: 0.5,
+      maxRadius: 80,
+      forceStrength: 1.0,
+      trailEffect: 0.08,
+      rules: [
+        [ 0.10, -0.30,  0.40, -0.10,  0.20, -0.20],
+        [ 0.30,  0.05, -0.20,  0.30, -0.10,  0.40],
+        [-0.20,  0.10,  0.10,  0.20, -0.30,  0.10],
+        [ 0.10, -0.40,  0.20,  0.05, -0.20, -0.10],
+        [-0.10,  0.20, -0.30,  0.20,  0.10,  0.30],
+        [ 0.20, -0.10,  0.10, -0.30,  0.40,  0.05],
+      ],
+    },
+  },
+  {
     name: 'Ecosystems',
-    description: 'Predator-prey relationships create dynamic ecosystems',
+    emoji: '🌿',
+    description: 'Predator-prey dynamics with chasing and fleeing',
     config: {
-      ...DEFAULT_CONFIG,
-      rules: [
-        [0.2, -0.4, 0.1, 0.3, -0.1, 0.2],
-        [0.3, 0.1, -0.3, 0.2, 0.4, -0.2],
-        [-0.1, 0.2, 0.3, -0.4, 0.1, 0.3],
-        [-0.3, -0.1, 0.4, 0.2, -0.3, 0.1],
-        [0.1, -0.4, -0.1, 0.3, 0.2, -0.3],
-        [-0.2, 0.3, -0.3, -0.1, 0.4, 0.1],
-      ],
-    },
-  },
-  {
-    name: 'Cells',
-    description: 'Self-organizing cellular structures',
-    config: {
-      ...DEFAULT_CONFIG,
-      friction: 0.05,
-      radius: 60,
-      rules: [
-        [0.5, -0.2, -0.3, 0.1, -0.1, 0.2],
-        [-0.2, 0.4, -0.1, -0.3, 0.2, -0.1],
-        [-0.3, -0.1, 0.3, 0.2, -0.2, -0.1],
-        [0.1, -0.3, 0.2, 0.4, -0.1, -0.2],
-        [-0.1, 0.2, -0.2, -0.1, 0.3, 0.1],
-        [0.2, -0.1, -0.1, -0.2, 0.1, 0.5],
-      ],
-    },
-  },
-  {
-    name: 'Hunters',
-    description: 'Chasing behaviors and pack formation',
-    config: {
-      ...DEFAULT_CONFIG,
-      speed: 1.5,
-      friction: 0.01,
-      rules: [
-        [-0.1, 0.8, -0.2, 0.3, -0.4, 0.1],
-        [-0.8, -0.1, 0.4, -0.2, 0.3, -0.1],
-        [0.2, -0.4, -0.1, 0.6, -0.3, 0.2],
-        [-0.3, 0.2, -0.6, -0.1, 0.5, -0.2],
-        [0.4, -0.3, 0.3, -0.5, -0.1, 0.7],
-        [-0.1, 0.1, -0.2, 0.2, -0.7, -0.1],
-      ],
-    },
-  },
-  {
-    name: 'Symmetry',
-    description: 'Beautiful symmetric patterns and formations',
-    config: {
-      ...DEFAULT_CONFIG,
-      friction: 0.03,
-      radius: 100,
-      rules: [
-        [0.3, -0.3, 0.2, -0.2, 0.1, -0.1],
-        [-0.3, 0.3, -0.2, 0.2, -0.1, 0.1],
-        [0.2, -0.2, 0.3, -0.3, 0.1, -0.1],
-        [-0.2, 0.2, -0.3, 0.3, -0.1, 0.1],
-        [0.1, -0.1, 0.1, -0.1, 0.2, -0.2],
-        [-0.1, 0.1, -0.1, 0.1, -0.2, 0.2],
-      ],
-    },
-  },
-  {
-    name: 'Chaos',
-    description: 'Turbulent, ever-changing patterns',
-    config: {
-      ...DEFAULT_CONFIG,
-      speed: 2.0,
-      friction: 0.005,
+      particleCount: 1200,
+      speed: 1.2,
+      friction: 0.4,
+      maxRadius: 100,
       forceStrength: 0.8,
+      trailEffect: 0.06,
       rules: [
-        [0.7, -0.8, 0.4, -0.6, 0.3, -0.5],
-        [-0.5, 0.6, -0.7, 0.4, -0.8, 0.3],
-        [0.4, -0.3, 0.8, -0.7, 0.5, -0.6],
-        [-0.6, 0.5, -0.4, 0.7, -0.3, 0.8],
-        [0.3, -0.8, 0.5, -0.4, 0.6, -0.7],
-        [-0.7, 0.4, -0.6, 0.8, -0.5, 0.3],
+        [ 0.20,  0.60, -0.40,  0.10, -0.20,  0.30],
+        [-0.60,  0.10,  0.50, -0.30,  0.20, -0.10],
+        [ 0.30, -0.50,  0.20,  0.60, -0.10,  0.10],
+        [-0.10,  0.30, -0.60,  0.10,  0.40, -0.30],
+        [ 0.20, -0.20,  0.10, -0.40,  0.20,  0.50],
+        [-0.30,  0.10, -0.10,  0.30, -0.50,  0.10],
       ],
     },
   },
   {
-    name: 'Orbits',
-    description: 'Stable orbital patterns and clusters',
+    name: 'Living Cells',
+    emoji: '🔬',
+    description: 'Self-organizing membranes and internal structures',
+    config: {
+      particleCount: 2000,
+      speed: 0.8,
+      friction: 0.6,
+      maxRadius: 60,
+      forceStrength: 1.2,
+      trailEffect: 0.04,
+      rules: [
+        [ 0.60, -0.20, -0.30,  0.10, -0.10,  0.20],
+        [-0.20,  0.50, -0.10, -0.30,  0.20, -0.10],
+        [-0.30, -0.10,  0.40,  0.20, -0.20, -0.10],
+        [ 0.10, -0.30,  0.20,  0.50, -0.10, -0.20],
+        [-0.10,  0.20, -0.20, -0.10,  0.40,  0.10],
+        [ 0.20, -0.10, -0.10, -0.20,  0.10,  0.60],
+      ],
+    },
+  },
+  {
+    name: 'Orbital Clusters',
+    emoji: '🪐',
+    description: 'Stable spinning clusters with orbiting satellites',
+    config: {
+      particleCount: 1000,
+      speed: 1.0,
+      friction: 0.3,
+      maxRadius: 120,
+      forceStrength: 0.6,
+      trailEffect: 0.03,
+      rules: [
+        [ 0.10,  0.40, -0.10, -0.30,  0.20, -0.20],
+        [-0.40,  0.10,  0.30, -0.10, -0.20,  0.20],
+        [ 0.10, -0.30,  0.10,  0.40, -0.10, -0.20],
+        [ 0.30,  0.10, -0.40,  0.10,  0.20, -0.10],
+        [-0.20,  0.20,  0.10, -0.20,  0.10,  0.30],
+        [ 0.20, -0.20,  0.20,  0.10, -0.30,  0.10],
+      ],
+    },
+  },
+  {
+    name: 'Turbulence',
+    emoji: '🌪️',
+    description: 'Violent, ever-shifting chaos with fleeting patterns',
+    config: {
+      particleCount: 1500,
+      speed: 2.0,
+      friction: 0.2,
+      maxRadius: 80,
+      forceStrength: 1.5,
+      trailEffect: 0.15,
+      rules: [
+        [ 0.70, -0.80,  0.40, -0.60,  0.30, -0.50],
+        [-0.50,  0.60, -0.70,  0.40, -0.80,  0.30],
+        [ 0.40, -0.30,  0.80, -0.70,  0.50, -0.60],
+        [-0.60,  0.50, -0.40,  0.70, -0.30,  0.80],
+        [ 0.30, -0.80,  0.50, -0.40,  0.60, -0.70],
+        [-0.70,  0.40, -0.60,  0.80, -0.50,  0.30],
+      ],
+    },
+  },
+  {
+    name: 'Slime Mold',
+    emoji: '🟡',
+    description: 'Branching networks like real slime mold',
+    config: {
+      particleCount: 2500,
+      speed: 0.6,
+      friction: 0.7,
+      maxRadius: 50,
+      forceStrength: 1.5,
+      trailEffect: 0.02,
+      rules: [
+        [ 0.30,  0.20,  0.10,  0.10,  0.15,  0.10],
+        [ 0.20,  0.30,  0.20,  0.10,  0.10,  0.15],
+        [ 0.10,  0.20,  0.30,  0.20,  0.10,  0.10],
+        [ 0.10,  0.10,  0.20,  0.30,  0.20,  0.10],
+        [ 0.15,  0.10,  0.10,  0.20,  0.30,  0.20],
+        [ 0.10,  0.15,  0.10,  0.10,  0.20,  0.30],
+      ],
+    },
+  },
+  {
+    name: 'Galaxy',
+    emoji: '🌌',
+    description: 'Spiral arm formation with dense cores',
+    config: {
+      particleCount: 2000,
+      speed: 0.8,
+      friction: 0.15,
+      maxRadius: 150,
+      forceStrength: 0.4,
+      trailEffect: 0.02,
+      rules: [
+        [ 0.05,  0.30, -0.20, -0.10,  0.15, -0.15],
+        [-0.30,  0.05,  0.25, -0.20, -0.10,  0.20],
+        [ 0.20, -0.25,  0.05,  0.30, -0.15, -0.10],
+        [ 0.10,  0.20, -0.30,  0.05,  0.25, -0.15],
+        [-0.15,  0.10,  0.15, -0.25,  0.05,  0.30],
+        [ 0.15, -0.20,  0.10,  0.15, -0.30,  0.05],
+      ],
+    },
+  },
+  {
+    name: 'Random',
+    emoji: '🎲',
+    description: 'Randomize all rules — discover something new!',
     config: {
       ...DEFAULT_CONFIG,
-      friction: 0.01,
-      radius: 120,
-      forceStrength: 0.3,
-      rules: [
-        [0.1, 0.4, -0.1, -0.3, 0.2, -0.2],
-        [-0.4, 0.1, 0.3, -0.1, -0.2, 0.2],
-        [0.1, -0.3, 0.1, 0.4, -0.1, -0.2],
-        [0.3, 0.1, -0.4, 0.1, 0.2, -0.1],
-        [-0.2, 0.2, 0.1, -0.2, 0.1, 0.3],
-        [0.2, -0.2, 0.2, 0.1, -0.3, 0.1],
-      ],
+      rules: randomRules(),
     },
   },
 ];

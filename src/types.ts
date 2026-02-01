@@ -10,44 +10,40 @@ export interface SimulationConfig {
   particleCount: number;
   speed: number;
   friction: number;
-  radius: number;
+  maxRadius: number;       // Max interaction radius
+  minRadius: number;       // Min radius (repulsion zone boundary)
   forceStrength: number;
-  trailEffect: boolean;
-  rules: number[][]; // 6x6 matrix of attraction/repulsion values
-}
-
-export interface SimulationState {
-  particles: Particle[];
-  config: SimulationConfig;
-  isRunning: boolean;
-  canvas: HTMLCanvasElement | null;
-  ctx: CanvasRenderingContext2D | null;
+  trailEffect: number;     // 0 = no trail, 0.01-0.3 = trail intensity
+  particleSize: number;
+  rules: number[][];       // NxN matrix of attraction/repulsion values (-1 to 1)
 }
 
 export const PARTICLE_COLORS = [
-  '#FF4444', // Red
-  '#44FF44', // Green  
-  '#4444FF', // Blue
-  '#FFFF44', // Yellow
-  '#44FFFF', // Cyan
-  '#FF44FF', // Magenta
+  '#ff3344', // Red
+  '#33ff77', // Green
+  '#3388ff', // Blue
+  '#ffdd33', // Yellow
+  '#33ddff', // Cyan
+  '#ff44dd', // Magenta
 ];
 
 export const PARTICLE_TYPES = PARTICLE_COLORS.length;
 
 export const DEFAULT_CONFIG: SimulationConfig = {
-  particleCount: 1000,
+  particleCount: 1200,
   speed: 1.0,
-  friction: 0.02,
-  radius: 80,
-  forceStrength: 0.5,
-  trailEffect: true,
+  friction: 0.5,
+  maxRadius: 100,
+  minRadius: 20,
+  forceStrength: 1.0,
+  trailEffect: 0.05,
+  particleSize: 2,
   rules: [
-    [0.1, -0.2, 0.3, -0.1, 0.2, -0.3],
-    [-0.2, 0.1, -0.3, 0.2, -0.1, 0.3],
-    [0.3, -0.3, 0.1, 0.2, -0.2, 0.1],
-    [-0.1, 0.2, 0.2, 0.1, -0.3, -0.2],
-    [0.2, -0.1, -0.2, -0.3, 0.1, 0.3],
-    [-0.3, 0.3, 0.1, -0.2, 0.3, 0.1],
+    [ 0.10, -0.20,  0.30, -0.10,  0.20, -0.30],
+    [-0.20,  0.10, -0.30,  0.20, -0.10,  0.30],
+    [ 0.30, -0.30,  0.10,  0.20, -0.20,  0.10],
+    [-0.10,  0.20,  0.20,  0.10, -0.30, -0.20],
+    [ 0.20, -0.10, -0.20, -0.30,  0.10,  0.30],
+    [-0.30,  0.30,  0.10, -0.20,  0.30,  0.10],
   ],
 };

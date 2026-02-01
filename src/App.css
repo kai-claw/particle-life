@@ -5,93 +5,360 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Custom scrollbar for control panel */
-::-webkit-scrollbar {
-  width: 6px;
+/* ── Control Panel Toggle ────────────────────── */
+.panel-toggle {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+  background: rgba(15, 15, 25, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ddd;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  font-size: 14px;
 }
 
-::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+/* ── Control Panel ───────────────────────────── */
+.control-panel {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  width: 320px;
+  background: rgba(10, 10, 20, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #e0e0e0;
+  backdrop-filter: blur(16px);
+  z-index: 20;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
 }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 3px;
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.5);
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-/* Input styling */
+.panel-title h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.fps-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #aaa;
+  font-variant-numeric: tabular-nums;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+}
+.close-btn:hover { color: #fff; }
+
+/* ── Action Buttons ──────────────────────────── */
+.panel-actions {
+  display: flex;
+  gap: 6px;
+  padding: 12px 18px 8px;
+}
+
+.btn-primary, .btn-secondary {
+  flex: 1;
+  padding: 8px 0;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-primary {
+  color: #000;
+}
+.btn-play { background: #33ff77; }
+.btn-pause { background: #ff5566; }
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ccc;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* ── Tabs ────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  padding: 0 18px;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.tab {
+  flex: 1;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #888;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.tab:hover { color: #ccc; }
+.tab-active {
+  color: #fff;
+  border-bottom-color: #33ff77;
+}
+
+.tab-content {
+  padding: 12px 18px 18px;
+}
+
+/* ── Sliders ─────────────────────────────────── */
+.slider-row {
+  margin-bottom: 14px;
+}
+
+.slider-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.slider-label {
+  font-size: 12px;
+  color: #aaa;
+}
+
+.slider-value {
+  font-size: 12px;
+  color: #ddd;
+  font-variant-numeric: tabular-nums;
+}
+
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  background: transparent;
-  cursor: pointer;
-}
-
-input[type="range"]::-webkit-slider-track {
-  background: rgba(255, 255, 255, 0.2);
+  width: 100%;
   height: 4px;
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 2px;
+  outline: none;
+  cursor: pointer;
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  appearance: none;
-  background: #ffffff;
-  height: 16px;
-  width: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  cursor: pointer;
-  border: 2px solid #000;
-}
-
-input[type="range"]::-moz-range-track {
-  background: rgba(255, 255, 255, 0.2);
-  height: 4px;
-  border-radius: 2px;
+  background: #33ff77;
   border: none;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(51, 255, 119, 0.4);
 }
 
 input[type="range"]::-moz-range-thumb {
-  background: #ffffff;
-  height: 16px;
-  width: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
+  background: #33ff77;
+  border: none;
   cursor: pointer;
-  border: 2px solid #000;
 }
 
-/* Checkbox styling */
-input[type="checkbox"] {
-  accent-color: #44ff44;
+/* ── Rules Tab ───────────────────────────────── */
+.rules-help {
+  font-size: 11px;
+  color: #888;
+  line-height: 1.5;
+  margin: 0 0 12px;
 }
 
-/* Button hover effects */
-button:hover {
-  opacity: 0.8;
-  transition: opacity 0.2s ease;
+.rule-matrix {
+  display: grid;
+  gap: 3px;
+  font-size: 10px;
 }
 
-button:active {
-  transform: scale(0.98);
+.rule-dot-header {
+  width: 100%;
+  height: 22px;
+  border-radius: 3px;
+  opacity: 0.9;
 }
 
-/* Smooth transitions */
-* {
-  transition: opacity 0.2s ease, transform 0.1s ease;
+.rule-cell {
+  width: 100%;
+  height: 26px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #ddd;
+  font-size: 10px;
+  text-align: center;
+  border-radius: 3px;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.15s;
+}
+.rule-cell:focus {
+  border-color: rgba(51, 255, 119, 0.5);
 }
 
-/* Loading state */
-.loading {
+/* Hide number input arrows */
+.rule-cell::-webkit-outer-spin-button,
+.rule-cell::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.rule-cell[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* ── Presets Tab ─────────────────────────────── */
+.presets-tab {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preset-card {
+  display: flex;
   align-items: center;
-  height: 100vh;
-  background: #000;
-  color: white;
-  font-size: 18px;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  transition: all 0.15s;
+}
+.preset-card:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.preset-emoji {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.preset-name {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.preset-desc {
+  font-size: 11px;
+  color: #888;
+  line-height: 1.3;
+}
+
+/* ── Help Overlay ────────────────────────────── */
+.help-overlay {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: rgba(10, 10, 20, 0.85);
+  color: #e0e0e0;
+  padding: 18px 22px;
+  border-radius: 12px;
+  max-width: 300px;
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 20;
+  cursor: pointer;
+  animation: fadeIn 0.4s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.help-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.help-body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #bbb;
+  margin-bottom: 10px;
+}
+
+.help-keys {
+  font-size: 11px;
+  color: #999;
+}
+
+.help-keys kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 11px;
+  margin-right: 2px;
+}
+
+.help-dismiss {
+  font-size: 10px;
+  color: #666;
+  margin-top: 8px;
+  text-align: center;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Scrollbar ───────────────────────────────── */
+.control-panel::-webkit-scrollbar {
+  width: 4px;
+}
+.control-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.control-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+
+/* ── Global resets for the app ───────────────── */
+button {
+  transition: opacity 0.15s, transform 0.1s, background 0.15s;
+}
+button:active {
+  transform: scale(0.97);
 }

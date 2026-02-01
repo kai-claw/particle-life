@@ -1,4 +1,4 @@
-* {
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -7,9 +7,11 @@
 html, body {
   height: 100%;
   overflow: hidden;
-  background: #000000;
+  background: #000;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: white;
+  color: #e0e0e0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
@@ -17,7 +19,6 @@ html, body {
   width: 100%;
 }
 
-/* Ensure no scrolling on the main page */
 body {
   position: fixed;
   top: 0;
@@ -26,18 +27,16 @@ body {
   height: 100%;
 }
 
-/* Disable text selection for better UX */
-* {
+/* Prevent text selection on UI elements */
+.app, .control-panel, .panel-toggle, .help-overlay {
   -webkit-user-select: none;
   -moz-user-select: none;
-  -ms-user-select: none;
   user-select: none;
 }
 
-/* Allow text selection in input fields */
+/* Allow selection in inputs */
 input, textarea {
   -webkit-user-select: text;
   -moz-user-select: text;
-  -ms-user-select: text;
   user-select: text;
 }
