@@ -1,5 +1,5 @@
-import type { Particle, SimulationConfig } from './types';
-import { PARTICLE_TYPES, PARTICLE_COLORS } from './types';
+import type { Particle, SimulationConfig, MouseForce } from './types';
+import { PARTICLE_TYPES, PARTICLE_COLORS, PARTICLE_RGB } from './types';
 
 /**
  * Spatial hash grid for O(n) neighbor lookups instead of O(n²).
@@ -117,6 +117,17 @@ export class ParticleSimulation {
   private lastFpsTime: number = 0;
   fps: number = 0;
 
+  // Mouse interaction force
+  mouseForce: MouseForce = { active: false, x: 0, y: 0, radius: 150, strength: 0 };
+
+  // Energy history for species chart (ring buffer, last 200 snapshots)
+  private energyHistory: number[][] = [];
+  private energyHistoryMax = 200;
+  private energySampleCounter = 0;
+
+  // Pre-built glow gradient caches (one per particle type)
+  private glowGradientCache: Map<string, CanvasGradient> = new Map();
+
   constructor(config: SimulationConfig) {
     this.config = { ...config, rules: config.rules.map(r => [...r]) };
   }
@@ -227,6 +238,11 @@ export class ParticleSimulation {
       hash.add(particles[i]);
     }
 
+    // Mouse force state
+    const mf = this.mouseForce;
+    const mfActive = mf.active && mf.strength !== 0;
+    const mfRadSq = mf.radius * mf.radius;
+
     // Update forces
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
@@ -259,6 +275,20 @@ export class ParticleSimulation {
 
         fx += (dx / d) * f;
         fy += (dy / d) * f;
+      }
+
+      // Mouse force — attract/repel particles toward/from cursor
+      if (mfActive) {
+        const mdx = mf.x - p.x;
+        const mdy = mf.y - p.y;
+        const mdSq = mdx * mdx + mdy * mdy;
+        if (mdSq < mfRadSq && mdSq > 1) {
+          const md = Math.sqrt(mdSq);
+          const falloff = 1 - md / mf.radius; // linear falloff
+          const mfStrength = mf.strength * falloff * 3;
+          fx += (mdx / md) * mfStrength;
+          fy += (mdy / md) * mfStrength;
+        }
       }
 
       // Apply forces
@@ -299,10 +329,41 @@ export class ParticleSimulation {
       p.x = ((p.x % w) + w) % w;
       p.y = ((p.y % h) + h) % h;
     }
+
+    // Sample species energy every 6 frames (~10Hz)
+    this.energySampleCounter++;
+    if (this.energySampleCounter >= 6) {
+      this.energySampleCounter = 0;
+      this.sampleEnergy();
+    }
+  }
+
+  /** Compute average kinetic energy per species */
+  private sampleEnergy() {
+    const counts = new Float64Array(PARTICLE_TYPES);
+    const energy = new Float64Array(PARTICLE_TYPES);
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      counts[p.type]++;
+      energy[p.type] += Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+    }
+    const snapshot: number[] = [];
+    for (let t = 0; t < PARTICLE_TYPES; t++) {
+      snapshot.push(counts[t] > 0 ? energy[t] / counts[t] : 0);
+    }
+    this.energyHistory.push(snapshot);
+    if (this.energyHistory.length > this.energyHistoryMax) {
+      this.energyHistory.shift();
+    }
+  }
+
+  /** Get species energy history for DynamicsChart */
+  getEnergyHistory(): number[][] {
+    return this.energyHistory;
   }
 
   render(ctx: CanvasRenderingContext2D) {
-    const { trailEffect, particleSize } = this.config;
+    const { trailEffect, particleSize, glowEnabled } = this.config;
     const w = this.width;
     const h = this.height;
 
@@ -315,20 +376,99 @@ export class ParticleSimulation {
       ctx.fillRect(0, 0, w, h);
     }
 
-    // Batch render by type for fewer state changes
+    if (glowEnabled) {
+      this.renderGlow(ctx, particleSize);
+    } else {
+      this.renderFlat(ctx, particleSize);
+    }
+
+    // Draw mouse force indicator
+    if (this.mouseForce.active) {
+      this.renderMouseForce(ctx);
+    }
+  }
+
+  /** Fast flat-circle rendering (original) */
+  private renderFlat(ctx: CanvasRenderingContext2D, particleSize: number) {
     for (let t = 0; t < PARTICLE_TYPES; t++) {
       ctx.fillStyle = PARTICLE_COLORS[t];
       ctx.beginPath();
-
       for (let i = 0; i < this.particles.length; i++) {
         const p = this.particles[i];
         if (p.type !== t) continue;
         ctx.moveTo(p.x + particleSize, p.y);
         ctx.arc(p.x, p.y, particleSize, 0, Math.PI * 2);
       }
-
       ctx.fill();
     }
+  }
+
+  /** Glow rendering — radial gradient particles with additive blending */
+  private renderGlow(ctx: CanvasRenderingContext2D, particleSize: number) {
+    const glowRadius = particleSize * 3.5;
+    const prevComposite = ctx.globalCompositeOperation;
+
+    // Additive blending — overlapping glows accumulate into bright clusters
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (let t = 0; t < PARTICLE_TYPES; t++) {
+      const rgb = PARTICLE_RGB[t];
+
+      for (let i = 0; i < this.particles.length; i++) {
+        const p = this.particles[i];
+        if (p.type !== t) continue;
+
+        // Speed-based brightness: faster particles glow brighter
+        const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        const brightness = Math.min(1, 0.35 + speed * 0.15);
+
+        // Build gradient per particle (position-dependent so can't fully cache)
+        const cacheKey = `${t}-${Math.round(glowRadius)}`;
+        let grad = this.glowGradientCache.get(cacheKey);
+        if (!grad || true) {
+          grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowRadius);
+          grad.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${brightness})`);
+          grad.addColorStop(0.3, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${brightness * 0.5})`);
+          grad.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+        }
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(p.x - glowRadius, p.y - glowRadius, glowRadius * 2, glowRadius * 2);
+      }
+    }
+
+    ctx.globalCompositeOperation = prevComposite;
+  }
+
+  /** Draw mouse force visual indicator */
+  private renderMouseForce(ctx: CanvasRenderingContext2D) {
+    const mf = this.mouseForce;
+    const prevComposite = ctx.globalCompositeOperation;
+    ctx.globalCompositeOperation = 'lighter';
+
+    const grad = ctx.createRadialGradient(mf.x, mf.y, 0, mf.x, mf.y, mf.radius);
+    if (mf.strength > 0) {
+      // Attract — warm white/gold glow
+      grad.addColorStop(0, 'rgba(255, 220, 120, 0.12)');
+      grad.addColorStop(0.5, 'rgba(255, 180, 60, 0.05)');
+      grad.addColorStop(1, 'rgba(255, 180, 60, 0)');
+    } else {
+      // Repel — cool blue/red pulse
+      grad.addColorStop(0, 'rgba(255, 80, 80, 0.12)');
+      grad.addColorStop(0.5, 'rgba(255, 40, 40, 0.05)');
+      grad.addColorStop(1, 'rgba(255, 40, 40, 0)');
+    }
+    ctx.fillStyle = grad;
+    ctx.fillRect(mf.x - mf.radius, mf.y - mf.radius, mf.radius * 2, mf.radius * 2);
+
+    // Ring indicator
+    ctx.strokeStyle = mf.strength > 0 ? 'rgba(255, 220, 120, 0.2)' : 'rgba(255, 80, 80, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(mf.x, mf.y, mf.radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.globalCompositeOperation = prevComposite;
   }
 
   getConfig(): SimulationConfig {

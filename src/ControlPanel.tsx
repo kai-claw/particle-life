@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import type { SimulationConfig } from './types';
 import { PARTICLE_COLORS, PARTICLE_TYPES } from './types';
 import { PRESETS, randomRules } from './presets';
+import { DynamicsChart } from './DynamicsChart';
 import type { ParticleSimulation } from './simulation';
 
 /** Color names for screen readers (matches PARTICLE_COLORS order) */
@@ -57,6 +58,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState<'controls' | 'rules' | 'presets'>('controls');
+  const [showChart, setShowChart] = useState(false);
 
   const updateConfig = useCallback(
     (updates: Partial<SimulationConfig>) => {
@@ -241,6 +243,38 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               format={(v) => v.toFixed(1)}
               onChange={(v) => updateConfig({ particleSize: v })}
             />
+
+            {/* Visual toggles */}
+            <div className="toggle-row">
+              <label className="toggle-label" htmlFor="toggle-glow">✨ Glow Mode</label>
+              <button
+                id="toggle-glow"
+                className={`toggle-btn ${config.glowEnabled ? 'toggle-on' : ''}`}
+                onClick={() => updateConfig({ glowEnabled: !config.glowEnabled })}
+                aria-pressed={config.glowEnabled}
+                role="switch"
+              >
+                {config.glowEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div className="toggle-row">
+              <label className="toggle-label" htmlFor="toggle-chart">📊 Energy Chart</label>
+              <button
+                id="toggle-chart"
+                className={`toggle-btn ${showChart ? 'toggle-on' : ''}`}
+                onClick={() => setShowChart(v => !v)}
+                aria-pressed={showChart}
+                role="switch"
+              >
+                {showChart ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div className="mouse-hint">
+              <span className="hint-icon" aria-hidden="true">🖱️</span>
+              <span className="hint-text">Click to attract · Right-click to repel</span>
+            </div>
           </div>
         )}
 
@@ -333,6 +367,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
         )}
       </div>
+
+      {/* Species energy dynamics chart */}
+      <DynamicsChart simulation={simulation} visible={showChart} />
     </div>
   );
 };

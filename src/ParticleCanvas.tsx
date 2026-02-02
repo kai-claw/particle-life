@@ -91,6 +91,57 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
     }
   }, [config]);
 
+  // Mouse interaction handlers
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const sim = simRef.current;
+    if (!sim) return;
+    e.preventDefault();
+    // Left click = attract, right click = repel
+    const strength = e.button === 2 ? -1.5 : 1.5;
+    sim.mouseForce = { active: true, x: e.clientX, y: e.clientY, radius: 150, strength };
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const sim = simRef.current;
+    if (!sim || !sim.mouseForce.active) return;
+    sim.mouseForce.x = e.clientX;
+    sim.mouseForce.y = e.clientY;
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    const sim = simRef.current;
+    if (!sim) return;
+    sim.mouseForce.active = false;
+  }, []);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent context menu on right-click
+  }, []);
+
+  // Touch support for mobile
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    const sim = simRef.current;
+    if (!sim || e.touches.length === 0) return;
+    const touch = e.touches[0];
+    // Single touch = attract, two-finger = repel
+    const strength = e.touches.length >= 2 ? -1.5 : 1.5;
+    sim.mouseForce = { active: true, x: touch.clientX, y: touch.clientY, radius: 150, strength };
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    const sim = simRef.current;
+    if (!sim || !sim.mouseForce.active || e.touches.length === 0) return;
+    const touch = e.touches[0];
+    sim.mouseForce.x = touch.clientX;
+    sim.mouseForce.y = touch.clientY;
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    const sim = simRef.current;
+    if (!sim) return;
+    sim.mouseForce.active = false;
+  }, []);
+
   // Animation loop — uses refs to avoid dependency churn
   const animate = useCallback(() => {
     const sim = simRef.current;
@@ -117,7 +168,15 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
     <canvas
       ref={canvasRef}
       role="img"
-      aria-label="Particle life simulation — colored particles attracting and repelling each other"
+      aria-label="Particle life simulation — colored particles attracting and repelling each other. Click to attract particles, right-click to repel."
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onContextMenu={handleContextMenu}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       style={{
         position: 'fixed',
         top: 0,
@@ -126,6 +185,7 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
         height: '100vh',
         background: '#000',
         zIndex: 1,
+        cursor: 'crosshair',
       }}
     />
   );
