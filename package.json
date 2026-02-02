@@ -1,8 +1,25 @@
 {
   "name": "particle-life",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Emergent behavior simulator — colored particles self-organize into living structures through configurable attraction and repulsion rules",
   "type": "module",
+  "homepage": "https://kai-claw.github.io/particle-life/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kai-claw/particle-life.git"
+  },
+  "author": "kai-claw",
+  "license": "MIT",
+  "keywords": [
+    "particle-life",
+    "emergent-behavior",
+    "artificial-life",
+    "simulation",
+    "canvas",
+    "react",
+    "typescript"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

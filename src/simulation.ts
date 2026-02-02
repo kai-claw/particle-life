@@ -7,7 +7,7 @@ import { PARTICLE_TYPES, PARTICLE_COLORS } from './types';
 class SpatialHash {
   private cellSize: number;
   private grid: Map<number, Particle[]>;
-  constructor(cellSize: number, _w: number, _h: number) {
+  constructor(cellSize: number) {
     this.cellSize = Math.max(cellSize, 1);
     this.grid = new Map();
   }
@@ -56,11 +56,11 @@ class SpatialHash {
  * At medium range (beta < d < 1) → attraction or repulsion based on the rule value.
  * Beyond the radius → no force.
  * 
- * This is what creates the beautiful emergent organic structures.
+ * @param normalizedDist - distance normalized to 0..1 (distance / maxRadius)
+ * @param attraction - rule matrix value for this pair (-1 to 1)
+ * @param beta - repulsion zone boundary (minRadius / maxRadius), typically ~0.2-0.3
  */
-function particleLifeForce(normalizedDist: number, attraction: number): number {
-  const beta = 0.3; // boundary between repulsion and attraction zones
-
+function particleLifeForce(normalizedDist: number, attraction: number, beta: number): number {
   if (normalizedDist < beta) {
     // Strong repulsion at close range, linearly goes from -1 to 0
     return normalizedDist / beta - 1;
@@ -92,7 +92,7 @@ export class ParticleSimulation {
   setDimensions(width: number, height: number) {
     this.width = width;
     this.height = height;
-    this.spatialHash = new SpatialHash(this.config.maxRadius, width, height);
+    this.spatialHash = new SpatialHash(this.config.maxRadius);
   }
 
   updateConfig(newConfig: SimulationConfig) {
@@ -100,7 +100,7 @@ export class ParticleSimulation {
     this.config = { ...newConfig, rules: newConfig.rules.map(r => [...r]) };
 
     if (this.width > 0) {
-      this.spatialHash = new SpatialHash(this.config.maxRadius, this.width, this.height);
+      this.spatialHash = new SpatialHash(this.config.maxRadius);
     }
 
     // Only adjust particles if count actually changed
@@ -154,13 +154,14 @@ export class ParticleSimulation {
     }
 
     const hash = this.spatialHash;
-    const { speed, friction, maxRadius, forceStrength, rules } = this.config;
+    const { speed, friction, maxRadius, minRadius, forceStrength, rules } = this.config;
     const w = this.width;
     const h = this.height;
     const halfW = w / 2;
     const halfH = h / 2;
     const rSq = maxRadius * maxRadius;
     const invR = 1 / maxRadius;
+    const beta = Math.max(0.01, Math.min(0.99, minRadius / maxRadius)); // repulsion zone ratio
     const dt = speed * 0.5; // timestep scaled by speed
 
     // Rebuild spatial hash
@@ -198,7 +199,7 @@ export class ParticleSimulation {
         const d = Math.sqrt(dSq);
         const nd = d * invR; // normalized distance 0..1
         const attraction = pRules[other.type];
-        const f = particleLifeForce(nd, attraction) * forceStrength;
+        const f = particleLifeForce(nd, attraction, beta) * forceStrength;
 
         fx += (dx / d) * f;
         fy += (dy / d) * f;
