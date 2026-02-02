@@ -8,6 +8,21 @@ interface ParticleCanvasProps {
   onSimulationRef: (sim: ParticleSimulation | null) => void;
 }
 
+/**
+ * Set canvas resolution accounting for device pixel ratio.
+ * CSS size stays at viewport dimensions; canvas buffer is scaled up.
+ */
+function setupCanvas(canvas: HTMLCanvasElement): number {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2); // cap at 2× for perf
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  return dpr;
+}
+
 export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
   config,
   isRunning,
@@ -16,6 +31,7 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const simRef = useRef<ParticleSimulation | null>(null);
   const rafRef = useRef<number>(0);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const configRef = useRef(config);
   const runningRef = useRef(isRunning);
 
@@ -28,19 +44,32 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const dpr = setupCanvas(canvas);
 
+    // Get and cache context — apply DPR transform
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      console.error('Particle Life: Could not get canvas 2D context');
+      return;
+    }
+    ctx.scale(dpr, dpr);
+    ctxRef.current = ctx;
+
+    // Simulation uses CSS pixel dimensions (not canvas buffer pixels)
     const sim = new ParticleSimulation(config);
-    sim.setDimensions(canvas.width, canvas.height);
+    sim.setDimensions(window.innerWidth, window.innerHeight);
     sim.initializeParticles();
     simRef.current = sim;
     onSimulationRef(sim);
 
     const onResize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      sim.setDimensions(canvas.width, canvas.height);
+      const newDpr = setupCanvas(canvas);
+      const newCtx = canvas.getContext('2d');
+      if (newCtx) {
+        newCtx.scale(newDpr, newDpr);
+        ctxRef.current = newCtx;
+      }
+      sim.setDimensions(window.innerWidth, window.innerHeight);
     };
 
     window.addEventListener('resize', onResize);
@@ -49,6 +78,7 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
       window.removeEventListener('resize', onResize);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       simRef.current = null;
+      ctxRef.current = null;
       onSimulationRef(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -64,11 +94,8 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
   // Animation loop — uses refs to avoid dependency churn
   const animate = useCallback(() => {
     const sim = simRef.current;
-    const canvas = canvasRef.current;
-    if (!sim || !canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const ctx = ctxRef.current;
+    if (!sim || !ctx) return;
 
     if (runningRef.current) {
       sim.update();
@@ -89,6 +116,8 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
   return (
     <canvas
       ref={canvasRef}
+      role="img"
+      aria-label="Particle life simulation — colored particles attracting and repelling each other"
       style={{
         position: 'fixed',
         top: 0,

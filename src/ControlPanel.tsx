@@ -1,8 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import type { SimulationConfig } from './types';
 import { PARTICLE_COLORS, PARTICLE_TYPES } from './types';
-import { PRESETS } from './presets';
+import { PRESETS, randomRules } from './presets';
 import type { ParticleSimulation } from './simulation';
+
+/** Color names for screen readers (matches PARTICLE_COLORS order) */
+const COLOR_NAMES = ['Red', 'Green', 'Blue', 'Yellow', 'Cyan', 'Magenta'];
 
 interface ControlPanelProps {
   config: SimulationConfig;
@@ -21,18 +24,24 @@ const Slider: React.FC<{
   step: number;
   format?: (v: number) => string;
   onChange: (v: number) => void;
-}> = ({ label, value, min, max, step, format, onChange }) => (
+  id: string;
+}> = ({ label, value, min, max, step, format, onChange, id }) => (
   <div className="slider-row">
     <div className="slider-header">
-      <span className="slider-label">{label}</span>
-      <span className="slider-value">{format ? format(value) : value}</span>
+      <label className="slider-label" htmlFor={id}>{label}</label>
+      <span className="slider-value" aria-hidden="true">{format ? format(value) : value}</span>
     </div>
     <input
+      id={id}
       type="range"
       min={min}
       max={max}
       step={step}
       value={value}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={value}
+      aria-valuetext={format ? format(value) : String(value)}
       onChange={(e) => onChange(parseFloat(e.target.value))}
     />
   </div>
@@ -66,17 +75,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   );
 
   const randomizeRules = useCallback(() => {
-    const newRules = Array.from({ length: PARTICLE_TYPES }, () =>
-      Array.from({ length: PARTICLE_TYPES }, () =>
-        Math.round((Math.random() * 2 - 1) * 100) / 100
-      )
-    );
-    onConfigChange({ ...config, rules: newRules });
+    onConfigChange({ ...config, rules: randomRules() });
   }, [config, onConfigChange]);
 
   const applyPreset = useCallback(
-    (presetConfig: Partial<SimulationConfig>) => {
-      onConfigChange({ ...config, ...presetConfig });
+    (preset: { config: Partial<SimulationConfig>; name: string }) => {
+      // Random preset: regenerate fresh rules on every click
+      if (preset.name === 'Random') {
+        onConfigChange({ ...config, ...preset.config, rules: randomRules() });
+      } else {
+        onConfigChange({ ...config, ...preset.config });
+      }
     },
     [config, onConfigChange]
   );
@@ -88,6 +97,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       <button
         className="panel-toggle"
         onClick={() => setIsExpanded(true)}
+        aria-label="Open control panel"
+        aria-expanded="false"
       >
         ☰ Controls
       </button>
@@ -95,14 +106,19 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   }
 
   return (
-    <div className="control-panel">
+    <div className="control-panel" role="region" aria-label="Simulation controls">
       {/* Header */}
       <div className="panel-header">
         <div className="panel-title">
           <h2>Particle Life</h2>
-          <span className="fps-badge">{fps} FPS</span>
+          <span className="fps-badge" aria-live="polite" aria-label={`${fps} frames per second`}>{fps} FPS</span>
         </div>
-        <button className="close-btn" onClick={() => setIsExpanded(false)}>×</button>
+        <button
+          className="close-btn"
+          onClick={() => setIsExpanded(false)}
+          aria-label="Close control panel"
+          aria-expanded="true"
+        >×</button>
       </div>
 
       {/* Action buttons */}
@@ -122,10 +138,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       </div>
 
       {/* Tabs */}
-      <div className="tab-bar">
+      <div className="tab-bar" role="tablist" aria-label="Control panel sections">
         {(['controls', 'rules', 'presets'] as const).map((tab) => (
           <button
             key={tab}
+            role="tab"
+            id={`tab-${tab}`}
+            aria-selected={activeTab === tab}
+            aria-controls={`tabpanel-${tab}`}
             className={`tab ${activeTab === tab ? 'tab-active' : ''}`}
             onClick={() => setActiveTab(tab)}
           >
@@ -138,8 +158,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* Tab content */}
       <div className="tab-content">
         {activeTab === 'controls' && (
-          <div className="controls-tab">
+          <div className="controls-tab" role="tabpanel" id="tabpanel-controls" aria-labelledby="tab-controls">
             <Slider
+              id="slider-particles"
               label="Particles"
               value={config.particleCount}
               min={200}
@@ -148,6 +169,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               onChange={(v) => updateConfig({ particleCount: v })}
             />
             <Slider
+              id="slider-speed"
               label="Speed"
               value={config.speed}
               min={0.1}
@@ -157,6 +179,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               onChange={(v) => updateConfig({ speed: v })}
             />
             <Slider
+              id="slider-friction"
               label="Friction"
               value={config.friction}
               min={0.01}
@@ -166,22 +189,30 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               onChange={(v) => updateConfig({ friction: v })}
             />
             <Slider
+              id="slider-maxradius"
               label="Max Radius"
               value={config.maxRadius}
               min={30}
               max={200}
               step={5}
-              onChange={(v) => updateConfig({ maxRadius: v })}
+              onChange={(v) => {
+                // Enforce min ≤ max invariant
+                const updates: Partial<SimulationConfig> = { maxRadius: v };
+                if (config.minRadius > v) updates.minRadius = Math.round(v * 0.3);
+                updateConfig(updates);
+              }}
             />
             <Slider
+              id="slider-minradius"
               label="Min Radius"
               value={config.minRadius}
               min={5}
-              max={80}
+              max={Math.min(80, config.maxRadius - 1)}
               step={1}
-              onChange={(v) => updateConfig({ minRadius: v })}
+              onChange={(v) => updateConfig({ minRadius: Math.min(v, config.maxRadius - 1) })}
             />
             <Slider
+              id="slider-force"
               label="Force"
               value={config.forceStrength}
               min={0.1}
@@ -191,6 +222,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               onChange={(v) => updateConfig({ forceStrength: v })}
             />
             <Slider
+              id="slider-trail"
               label="Trail"
               value={config.trailEffect}
               min={0}
@@ -200,6 +232,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               onChange={(v) => updateConfig({ trailEffect: v })}
             />
             <Slider
+              id="slider-dotsize"
               label="Dot Size"
               value={config.particleSize}
               min={1}
@@ -212,25 +245,30 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         )}
 
         {activeTab === 'rules' && (
-          <div className="rules-tab">
+          <div className="rules-tab" role="tabpanel" id="tabpanel-rules" aria-labelledby="tab-rules">
             <p className="rules-help">
               Each cell controls how <strong>row color</strong> reacts to <strong>column color</strong>.
-              <br />Positive = attract · Negative = repel
+              <br /><span aria-hidden="true">+</span> Positive = attract · <span aria-hidden="true">−</span> Negative = repel
             </p>
 
             <div
               className="rule-matrix"
+              role="grid"
+              aria-label="Particle interaction rule matrix"
               style={{
                 gridTemplateColumns: `32px repeat(${PARTICLE_TYPES}, 1fr)`,
               }}
             >
               {/* Column headers */}
-              <div />
+              <div role="columnheader" />
               {PARTICLE_COLORS.map((color, i) => (
                 <div
                   key={`ch-${i}`}
+                  role="columnheader"
                   className="rule-dot-header"
                   style={{ background: color }}
+                  aria-label={COLOR_NAMES[i]}
+                  title={COLOR_NAMES[i]}
                 />
               ))}
 
@@ -238,8 +276,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               {config.rules.map((row, fromType) => (
                 <React.Fragment key={`row-${fromType}`}>
                   <div
+                    role="rowheader"
                     className="rule-dot-header"
                     style={{ background: PARTICLE_COLORS[fromType] }}
+                    aria-label={COLOR_NAMES[fromType]}
+                    title={COLOR_NAMES[fromType]}
                   />
                   {row.map((value, toType) => {
                     const intensity = Math.abs(value);
@@ -262,6 +303,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                         }
                         className="rule-cell"
                         style={{ background: bg }}
+                        aria-label={`${COLOR_NAMES[fromType]} → ${COLOR_NAMES[toType]}: ${value > 0 ? 'attract' : value < 0 ? 'repel' : 'neutral'} ${value.toFixed(1)}`}
+                        title={`${COLOR_NAMES[fromType]} → ${COLOR_NAMES[toType]}`}
                       />
                     );
                   })}
@@ -272,14 +315,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         )}
 
         {activeTab === 'presets' && (
-          <div className="presets-tab">
+          <div className="presets-tab" role="tabpanel" id="tabpanel-presets" aria-labelledby="tab-presets">
             {PRESETS.map((preset, i) => (
               <button
                 key={i}
                 className="preset-card"
-                onClick={() => applyPreset(preset.config)}
+                onClick={() => applyPreset(preset)}
+                aria-label={`${preset.name}: ${preset.description}`}
               >
-                <span className="preset-emoji">{preset.emoji}</span>
+                <span className="preset-emoji" aria-hidden="true">{preset.emoji}</span>
                 <div className="preset-info">
                   <div className="preset-name">{preset.name}</div>
                   <div className="preset-desc">{preset.description}</div>

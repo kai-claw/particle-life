@@ -3,13 +3,27 @@ import { PARTICLE_TYPES, PARTICLE_COLORS } from './types';
 
 /**
  * Spatial hash grid for O(n) neighbor lookups instead of O(n²).
+ * Supports toroidal wrapping — particles near edges correctly find
+ * neighbors on the opposite side of the world.
  */
 class SpatialHash {
   private cellSize: number;
   private grid: Map<number, Particle[]>;
+  private cellsW: number = 0;
+  private cellsH: number = 0;
+
+  // Reusable result buffer to avoid per-call allocations
+  private resultBuffer: Particle[] = [];
+
   constructor(cellSize: number) {
     this.cellSize = Math.max(cellSize, 1);
     this.grid = new Map();
+  }
+
+  /** Set world dimensions for toroidal cell wrapping */
+  setWorldSize(w: number, h: number) {
+    this.cellsW = Math.max(1, Math.ceil(w / this.cellSize));
+    this.cellsH = Math.max(1, Math.ceil(h / this.cellSize));
   }
 
   clear() {
@@ -33,19 +47,37 @@ class SpatialHash {
     list.push(p);
   }
 
+  /**
+   * Get particles near (x, y), wrapping toroidally.
+   * Returns a shared buffer — caller must consume before next call.
+   */
   getNearby(x: number, y: number): Particle[] {
     const cx = Math.floor(x / this.cellSize);
     const cy = Math.floor(y / this.cellSize);
-    const out: Particle[] = [];
+    const buf = this.resultBuffer;
+    buf.length = 0;
+
+    const cw = this.cellsW;
+    const ch = this.cellsH;
+
     for (let dx = -1; dx <= 1; dx++) {
+      // Toroidal cell wrap
+      let ncx = cx + dx;
+      if (ncx < 0) ncx += cw;
+      else if (ncx >= cw) ncx -= cw;
+
       for (let dy = -1; dy <= 1; dy++) {
-        const list = this.grid.get(this.key(cx + dx, cy + dy));
+        let ncy = cy + dy;
+        if (ncy < 0) ncy += ch;
+        else if (ncy >= ch) ncy -= ch;
+
+        const list = this.grid.get(this.key(ncx, ncy));
         if (list) {
-          for (let i = 0; i < list.length; i++) out.push(list[i]);
+          for (let i = 0; i < list.length; i++) buf.push(list[i]);
         }
       }
     }
-    return out;
+    return buf;
   }
 }
 
@@ -92,15 +124,39 @@ export class ParticleSimulation {
   setDimensions(width: number, height: number) {
     this.width = width;
     this.height = height;
-    this.spatialHash = new SpatialHash(this.config.maxRadius);
+    const hash = new SpatialHash(this.config.maxRadius);
+    hash.setWorldSize(width, height);
+    this.spatialHash = hash;
+
+    // Clamp existing particles into new bounds (prevents out-of-bounds on resize)
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      if (width > 0) {
+        if (p.x < 0) p.x = 0;
+        else if (p.x >= width) p.x = width - 1;
+      }
+      if (height > 0) {
+        if (p.y < 0) p.y = 0;
+        else if (p.y >= height) p.y = height - 1;
+      }
+    }
   }
 
   updateConfig(newConfig: SimulationConfig) {
     const oldCount = this.config.particleCount;
-    this.config = { ...newConfig, rules: newConfig.rules.map(r => [...r]) };
+
+    // Enforce minRadius <= maxRadius to prevent broken force function
+    const safeConfig = { ...newConfig };
+    if (safeConfig.minRadius > safeConfig.maxRadius) {
+      safeConfig.minRadius = safeConfig.maxRadius * 0.3;
+    }
+
+    this.config = { ...safeConfig, rules: safeConfig.rules.map(r => [...r]) };
 
     if (this.width > 0) {
-      this.spatialHash = new SpatialHash(this.config.maxRadius);
+      const hash = new SpatialHash(this.config.maxRadius);
+      hash.setWorldSize(this.width, this.height);
+      this.spatialHash = hash;
     }
 
     // Only adjust particles if count actually changed
@@ -210,17 +266,38 @@ export class ParticleSimulation {
       p.vy = p.vy * (1 - friction) + fy * dt;
     }
 
-    // Move particles
+    // Move particles with safety guards
+    const maxVel = maxRadius * 0.5; // velocity cap prevents tunnelling
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
+
+      // Clamp velocity to prevent explosion under extreme settings
+      if (p.vx > maxVel) p.vx = maxVel;
+      else if (p.vx < -maxVel) p.vx = -maxVel;
+      if (p.vy > maxVel) p.vy = maxVel;
+      else if (p.vy < -maxVel) p.vy = -maxVel;
+
+      // NaN/Infinity guard — reset particle if corrupted
+      if (!Number.isFinite(p.vx) || !Number.isFinite(p.vy)) {
+        p.vx = 0;
+        p.vy = 0;
+      }
+
       p.x += p.vx;
       p.y += p.vy;
 
-      // Wrap toroidally
-      if (p.x < 0) p.x += w;
-      else if (p.x >= w) p.x -= w;
-      if (p.y < 0) p.y += h;
-      else if (p.y >= h) p.y -= h;
+      // NaN guard for position
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+        p.x = Math.random() * w;
+        p.y = Math.random() * h;
+        p.vx = 0;
+        p.vy = 0;
+        continue;
+      }
+
+      // Wrap toroidally (modulo handles velocities larger than world size)
+      p.x = ((p.x % w) + w) % w;
+      p.y = ((p.y % h) + h) % h;
     }
   }
 

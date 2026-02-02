@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
 import { ParticleCanvas } from './ParticleCanvas';
 import { ControlPanel } from './ControlPanel';
+import { ErrorBoundary } from './ErrorBoundary';
 import type { ParticleSimulation } from './simulation';
 import type { SimulationConfig } from './types';
 import { DEFAULT_CONFIG } from './types';
 import './App.css';
 
-const App: React.FC = () => {
+const AppInner: React.FC = () => {
   const [config, setConfig] = useState<SimulationConfig>(DEFAULT_CONFIG);
   const [isRunning, setIsRunning] = useState(true);
   const [simulation, setSimulation] = useState<ParticleSimulation | null>(null);
@@ -31,19 +32,21 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts — skip when focused on inputs or textareas
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (e.code === 'Space') { e.preventDefault(); toggleRunning(); }
       if (e.code === 'KeyR') { handleReset(); }
+      if (e.code === 'Escape' && showHelp) { setShowHelp(false); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [toggleRunning, handleReset]);
+  }, [toggleRunning, handleReset, showHelp]);
 
   return (
-    <div className="app">
+    <div className="app" role="application" aria-label="Particle Life simulation">
       <ParticleCanvas
         key={resetKey}
         config={config}
@@ -61,7 +64,14 @@ const App: React.FC = () => {
 
       {/* Help overlay — auto-hides */}
       {showHelp && (
-        <div className="help-overlay" onClick={() => setShowHelp(false)}>
+        <div
+          className="help-overlay"
+          onClick={() => setShowHelp(false)}
+          onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') setShowHelp(false); }}
+          role="status"
+          aria-live="polite"
+          tabIndex={0}
+        >
           <div className="help-title">🌊 Particle Life</div>
           <div className="help-body">
             Colored particles attract or repel based on configurable rules,
@@ -69,13 +79,20 @@ const App: React.FC = () => {
           </div>
           <div className="help-keys">
             <kbd>Space</kbd> Pause/Play &nbsp;&nbsp;
-            <kbd>R</kbd> Reset
+            <kbd>R</kbd> Reset &nbsp;&nbsp;
+            <kbd>Esc</kbd> Dismiss
           </div>
-          <div className="help-dismiss">Click to dismiss</div>
+          <div className="help-dismiss">Click or press Esc to dismiss</div>
         </div>
       )}
     </div>
   );
 };
+
+const App: React.FC = () => (
+  <ErrorBoundary>
+    <AppInner />
+  </ErrorBoundary>
+);
 
 export default App;

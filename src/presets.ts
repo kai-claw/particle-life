@@ -9,7 +9,7 @@ export interface Preset {
 }
 
 /** Generate a random rule matrix */
-function randomRules(): number[][] {
+export function randomRules(): number[][] {
   return Array.from({ length: PARTICLE_TYPES }, () =>
     Array.from({ length: PARTICLE_TYPES }, () =>
       Math.round((Math.random() * 2 - 1) * 100) / 100
