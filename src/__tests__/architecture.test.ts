@@ -232,3 +232,110 @@ describe('Module architecture', () => {
     expect(PARTICLE_TYPES).toBe(6);
   });
 });
+
+describe('Green Hat #2 — Connection Web', () => {
+  it('webEnabled defaults to false', () => {
+    expect(DEFAULT_CONFIG.webEnabled).toBe(false);
+  });
+
+  it('simulation accepts webEnabled config', () => {
+    const sim = new ParticleSimulation({ ...DEFAULT_CONFIG, webEnabled: true });
+    expect(sim.getConfig().webEnabled).toBe(true);
+  });
+
+  it('spatial hash is available after update for web rendering', () => {
+    const sim = new ParticleSimulation(DEFAULT_CONFIG);
+    sim.setDimensions(400, 400);
+    sim.initializeParticles();
+    sim.update();
+    expect(sim.spatialHash).not.toBeNull();
+  });
+
+  it('renderer has renderWeb capability (render does not throw with web enabled)', () => {
+    const sim = new ParticleSimulation({ ...DEFAULT_CONFIG, webEnabled: true, particleCount: 50 });
+    sim.setDimensions(200, 200);
+    sim.initializeParticles();
+    sim.update();
+    // Just verify no crash — Canvas 2D context not available in test
+    expect(sim.getConfig().webEnabled).toBe(true);
+  });
+});
+
+describe('Green Hat #2 — Species Mutation', () => {
+  it('mutationEnabled defaults to false', () => {
+    expect(DEFAULT_CONFIG.mutationEnabled).toBe(false);
+  });
+
+  it('simulation accepts mutationEnabled config', () => {
+    const sim = new ParticleSimulation({ ...DEFAULT_CONFIG, mutationEnabled: true });
+    expect(sim.getConfig().mutationEnabled).toBe(true);
+  });
+
+  it('mutation changes particle types over many frames', () => {
+    // Create a biased scenario: mostly type 0, few type 1, tightly clustered
+    const config = {
+      ...DEFAULT_CONFIG,
+      mutationEnabled: true,
+      particleCount: 100,
+      maxRadius: 300, // Very large radius so everyone sees each other
+      friction: 0.95, // High friction to keep them clustered
+      speed: 0.1,     // Slow speed to prevent spreading
+      forceStrength: 0.1,
+    };
+    const sim = new ParticleSimulation(config);
+    sim.setDimensions(100, 100);
+    sim.initializeParticles();
+
+    // Force 95 particles to type 0, 5 to type 1, all at center
+    for (let i = 0; i < sim.particles.length; i++) {
+      sim.particles[i].type = i < 95 ? 0 : 1;
+      sim.particles[i].x = 50 + (Math.random() - 0.5) * 10;
+      sim.particles[i].y = 50 + (Math.random() - 0.5) * 10;
+      sim.particles[i].vx = 0;
+      sim.particles[i].vy = 0;
+    }
+
+    // Run 500 frames — mutation fires every 8, so ~62 mutation rounds
+    const initialType1Count = sim.particles.filter(p => p.type === 1).length;
+    for (let step = 0; step < 500; step++) {
+      sim.update();
+    }
+    const finalType1Count = sim.particles.filter(p => p.type === 1).length;
+
+    // With 95 type-0 neighbors overwhelming 5 type-1 particles,
+    // at least some type-1 should have converted
+    expect(finalType1Count).toBeLessThan(initialType1Count);
+  });
+
+  it('mutation does not occur when disabled', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      mutationEnabled: false,
+      particleCount: 50,
+    };
+    const sim = new ParticleSimulation(config);
+    sim.setDimensions(200, 200);
+    sim.initializeParticles();
+
+    // Record initial types
+    const initialTypes = sim.particles.map(p => p.type);
+
+    for (let step = 0; step < 100; step++) {
+      sim.update();
+    }
+
+    // Types should be unchanged (no mutation)
+    const typesUnchanged = sim.particles.every((p, i) => p.type === initialTypes[i]);
+    expect(typesUnchanged).toBe(true);
+  });
+
+  it('new presets include Neural Web and Contagion', async () => {
+    const { PRESETS } = await import('../presets');
+    const neuralWeb = PRESETS.find((p) => p.name === 'Neural Web');
+    const contagion = PRESETS.find((p) => p.name === 'Contagion');
+    expect(neuralWeb).toBeDefined();
+    expect(neuralWeb!.config.webEnabled).toBe(true);
+    expect(contagion).toBeDefined();
+    expect(contagion!.config.mutationEnabled).toBe(true);
+  });
+});

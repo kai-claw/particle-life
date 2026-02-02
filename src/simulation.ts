@@ -27,7 +27,7 @@ export class ParticleSimulation {
   private config: SimulationConfig;
   private width: number = 0;
   private height: number = 0;
-  private spatialHash: SpatialHash | null = null;
+  spatialHash: SpatialHash | null = null;
   private renderer = new ParticleRenderer();
   private frameCount: number = 0;
   private lastFpsTime: number = 0;
@@ -43,6 +43,9 @@ export class ParticleSimulation {
 
   // Per-particle neighbor count cache (for density color mode)
   private neighborCounts: Float32Array = new Float32Array(0);
+
+  // Mutation counter — only check every N frames for pacing
+  private mutationCounter: number = 0;
 
   // Pre-computed velocity color cache per frame
   private maxSpeedObserved: number = 1;
@@ -388,11 +391,77 @@ export class ParticleSimulation {
     this.maxSpeedObserved = this.maxSpeedObserved * 0.95 + observedMax * 0.05;
     if (this.maxSpeedObserved < 0.1) this.maxSpeedObserved = 0.1;
 
+    // Species mutation — particles convert to majority neighbor species
+    if (this.config.mutationEnabled) {
+      this.mutateParticles();
+    }
+
     // Sample species energy every 6 frames (~10Hz)
     this.energySampleCounter++;
     if (this.energySampleCounter >= 6) {
       this.energySampleCounter = 0;
       this.sampleEnergy();
+    }
+  }
+
+  /** Species mutation: particles surrounded by another majority species may convert */
+  private mutateParticles() {
+    this.mutationCounter++;
+    if (this.mutationCounter < 8) return; // ~7.5 Hz at 60fps — visible pacing
+    this.mutationCounter = 0;
+
+    const hash = this.spatialHash;
+    if (!hash) return;
+
+    const particles = this.particles;
+    const { maxRadius } = this.config;
+    const mutR = maxRadius * 0.4;
+    const mutRSq = mutR * mutR;
+    const halfW = this.width / 2;
+    const halfH = this.height / 2;
+    const w = this.width;
+    const h = this.height;
+    const speciesCounts = new Uint16Array(PARTICLE_TYPES);
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      const nearby = hash.getNearby(p.x, p.y);
+
+      // Count neighbor species within close range
+      speciesCounts.fill(0);
+      for (let j = 0; j < nearby.length; j++) {
+        const other = nearby[j];
+        if (other === p) continue;
+
+        let dx = other.x - p.x;
+        let dy = other.y - p.y;
+        if (dx > halfW) dx -= w;
+        else if (dx < -halfW) dx += w;
+        if (dy > halfH) dy -= h;
+        else if (dy < -halfH) dy += h;
+
+        if (dx * dx + dy * dy < mutRSq) {
+          speciesCounts[other.type]++;
+        }
+      }
+
+      // Find majority species among neighbors
+      let maxCount = speciesCounts[p.type];
+      let majorityType = p.type;
+      for (let t = 0; t < PARTICLE_TYPES; t++) {
+        if (speciesCounts[t] > maxCount) {
+          maxCount = speciesCounts[t];
+          majorityType = t;
+        }
+      }
+
+      // Convert with probability proportional to neighbor advantage
+      if (majorityType !== p.type && maxCount > 2) {
+        const advantage = (maxCount - speciesCounts[p.type]) / maxCount;
+        if (Math.random() < advantage * 0.12) {
+          p.type = majorityType;
+        }
+      }
     }
   }
 
@@ -431,6 +500,7 @@ export class ParticleSimulation {
       this.mouseForce,
       this.maxSpeedObserved,
       this.neighborCounts,
+      this.spatialHash,
     );
   }
 

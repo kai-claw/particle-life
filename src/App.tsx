@@ -48,6 +48,8 @@ function lerpConfig(from: SimulationConfig, to: SimulationConfig, t: number): Si
     particleCount: st < 0.5 ? from.particleCount : to.particleCount,
     glowEnabled: st < 0.5 ? from.glowEnabled : to.glowEnabled,
     colorMode: st < 0.5 ? from.colorMode : to.colorMode,
+    webEnabled: st < 0.5 ? from.webEnabled : to.webEnabled,
+    mutationEnabled: st < 0.5 ? from.mutationEnabled : to.mutationEnabled,
     rules,
   };
 }
@@ -188,6 +190,8 @@ const AppInner: React.FC = () => {
       if (e.code === 'KeyE') { setShowChart(v => !v); }
       if (e.code === 'KeyC') { setCinematic(v => !v); }
       if (e.code === 'Escape' && showHelp) { setShowHelp(false); }
+      if (e.code === 'KeyW') { setConfig(c => ({ ...c, rules: c.rules.map(r => [...r]), webEnabled: !c.webEnabled })); }
+      if (e.code === 'KeyM') { setConfig(c => ({ ...c, rules: c.rules.map(r => [...r]), mutationEnabled: !c.mutationEnabled })); }
       if (e.code === 'Digit1') { setMouseTool('attract'); }
       if (e.code === 'Digit2') { setMouseTool('repel'); }
       if (e.code === 'Digit3') { setMouseTool('spawn'); }
@@ -267,6 +271,9 @@ const AppInner: React.FC = () => {
             <kbd>2</kbd> Repel &nbsp;
             <kbd>3</kbd> Spawn &nbsp;
             <kbd>C</kbd> Cinematic
+            <br />
+            <kbd>W</kbd> Connection Web &nbsp;
+            <kbd>M</kbd> Mutation
           </div>
           <div className="help-dismiss">Click or press Esc to dismiss</div>
         </div>

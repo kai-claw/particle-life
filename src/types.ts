@@ -26,6 +26,8 @@ export interface SimulationConfig {
   particleSize: number;
   glowEnabled: boolean;    // Radial gradient glow rendering with additive blending
   colorMode: ColorMode;    // How particles are colored
+  webEnabled: boolean;     // Draw connection lines between nearby particles
+  mutationEnabled: boolean; // Particles convert to majority neighbor species
   rules: number[][];       // NxN matrix of attraction/repulsion values (-1 to 1)
 }
 
@@ -70,6 +72,8 @@ export const DEFAULT_CONFIG: SimulationConfig = {
   particleSize: 2.5,
   glowEnabled: true,
   colorMode: 'type',
+  webEnabled: false,
+  mutationEnabled: false,
   rules: [
     [ 0.10, -0.20,  0.30, -0.10,  0.20, -0.30],
     [-0.20,  0.10, -0.30,  0.20, -0.10,  0.30],

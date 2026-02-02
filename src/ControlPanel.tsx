@@ -488,6 +488,33 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               ))}
             </div>
 
+            {/* Connection Web */}
+            <div className="section-label">Effects</div>
+            <div className="toggle-row">
+              <label htmlFor="toggle-web" className="slider-label">🕸️ Connection Web <kbd className="shortcut-key">W</kbd></label>
+              <button
+                id="toggle-web"
+                className={`toggle-btn ${config.webEnabled ? 'toggle-on' : ''}`}
+                onClick={() => updateConfig({ webEnabled: !config.webEnabled })}
+                aria-pressed={config.webEnabled}
+              >
+                {config.webEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            {/* Species Mutation */}
+            <div className="toggle-row">
+              <label htmlFor="toggle-mutation" className="slider-label">🦠 Species Mutation <kbd className="shortcut-key">M</kbd></label>
+              <button
+                id="toggle-mutation"
+                className={`toggle-btn ${config.mutationEnabled ? 'toggle-on' : ''}`}
+                onClick={() => updateConfig({ mutationEnabled: !config.mutationEnabled })}
+                aria-pressed={config.mutationEnabled}
+              >
+                {config.mutationEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
             {/* Initial Layout */}
             <div className="section-label">Launch Pattern <span className="section-hint">(resets simulation)</span></div>
             <div className="layout-picker">

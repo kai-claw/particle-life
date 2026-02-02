@@ -1,5 +1,6 @@
 import type { Particle, SimulationConfig, MouseForce } from './types';
 import { PARTICLE_COLORS, PARTICLE_RGB, PARTICLE_TYPES, hslToRgb } from './types';
+import type { SpatialHash } from './spatial-hash';
 
 /**
  * Map a speed value to an RGB color using a thermal/plasma gradient.
@@ -53,6 +54,7 @@ export class ParticleRenderer {
     mouseForce: MouseForce,
     maxSpeedObserved: number,
     neighborCounts: Float32Array,
+    spatialHash: SpatialHash | null,
   ) {
     const { trailEffect, particleSize, glowEnabled, colorMode } = config;
 
@@ -75,6 +77,11 @@ export class ParticleRenderer {
       this.renderVelocity(ctx, particles, particleSize, glowEnabled, maxSpeedObserved);
     } else if (colorMode === 'density') {
       this.renderDensity(ctx, particles, particleSize, glowEnabled, neighborCounts);
+    }
+
+    // Connection web — luminous lines between nearby particles
+    if (config.webEnabled && spatialHash) {
+      this.renderWeb(ctx, particles, config, width, height, spatialHash);
     }
 
     // Draw mouse force radius indicator
@@ -218,6 +225,69 @@ export class ParticleRenderer {
       ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+
+  /** Draw connection lines between nearby particles — neural network / constellation effect */
+  private renderWeb(
+    ctx: CanvasRenderingContext2D,
+    particles: Particle[],
+    config: SimulationConfig,
+    width: number,
+    height: number,
+    spatialHash: SpatialHash,
+  ) {
+    const webRadius = config.maxRadius * 0.5;
+    const webRadiusSq = webRadius * webRadius;
+    const halfW = width / 2;
+    const halfH = height / 2;
+    const invR = 1 / webRadius;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineWidth = 0.6;
+
+    // Batch lines by particle type for minimal stroke() calls
+    for (let t = 0; t < PARTICLE_TYPES; t++) {
+      const rgb = PARTICLE_RGB[t];
+      ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.045)`;
+      ctx.beginPath();
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        if (p.type !== t) continue;
+
+        const nearby = spatialHash.getNearby(p.x, p.y);
+        let count = 0;
+
+        for (let j = 0; j < nearby.length; j++) {
+          if (count >= 6) break;
+          const other = nearby[j];
+          if (other === p) continue;
+
+          let dx = other.x - p.x;
+          let dy = other.y - p.y;
+          if (dx > halfW) dx -= width;
+          else if (dx < -halfW) dx += width;
+          if (dy > halfH) dy -= height;
+          else if (dy < -halfH) dy += height;
+
+          const dSq = dx * dx + dy * dy;
+          if (dSq >= webRadiusSq) continue;
+
+          // Distance-based fade: finer lines are invisible at full batch alpha,
+          // but nearby particles accumulate brightness through additive blending
+          const d = Math.sqrt(dSq);
+          const fade = 1 - d * invR;
+          if (fade < 0.2) continue; // Skip very faint lines
+
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x + dx, p.y + dy);
+          count++;
+        }
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   /** Draw a visual indicator around the mouse cursor when force is active */
