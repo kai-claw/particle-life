@@ -166,12 +166,20 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               onChange={(v) => updateConfig({ friction: v })}
             />
             <Slider
-              label="Radius"
+              label="Max Radius"
               value={config.maxRadius}
               min={30}
               max={200}
               step={5}
               onChange={(v) => updateConfig({ maxRadius: v })}
+            />
+            <Slider
+              label="Min Radius"
+              value={config.minRadius}
+              min={5}
+              max={80}
+              step={1}
+              onChange={(v) => updateConfig({ minRadius: v })}
             />
             <Slider
               label="Force"
