@@ -17,6 +17,9 @@ export function randomRules(): number[][] {
   );
 }
 
+// Note: presets use Partial<SimulationConfig>, so colorMode is optional
+// and will default to the user's current selection if not specified.
+
 export const PRESETS: Preset[] = [
   {
     name: 'Primordial Soup',

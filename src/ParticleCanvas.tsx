@@ -1,11 +1,15 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { ParticleSimulation } from './simulation';
-import type { SimulationConfig } from './types';
+import type { SimulationConfig, MouseTool, InitialLayout } from './types';
 
 interface ParticleCanvasProps {
   config: SimulationConfig;
   isRunning: boolean;
+  mouseTool: MouseTool;
   onSimulationRef: (sim: ParticleSimulation | null) => void;
+  onScreenshot?: () => void;
+  onCanvasRef?: (el: HTMLCanvasElement | null) => void;
+  initialLayout?: InitialLayout;
 }
 
 /**
@@ -13,7 +17,7 @@ interface ParticleCanvasProps {
  * CSS size stays at viewport dimensions; canvas buffer is scaled up.
  */
 function setupCanvas(canvas: HTMLCanvasElement): number {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2); // cap at 2× for perf
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const w = window.innerWidth;
   const h = window.innerHeight;
   canvas.width = Math.round(w * dpr);
@@ -26,7 +30,10 @@ function setupCanvas(canvas: HTMLCanvasElement): number {
 export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
   config,
   isRunning,
+  mouseTool,
   onSimulationRef,
+  onCanvasRef,
+  initialLayout = 'random',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const simRef = useRef<ParticleSimulation | null>(null);
@@ -34,10 +41,12 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const configRef = useRef(config);
   const runningRef = useRef(isRunning);
+  const mouseToolRef = useRef(mouseTool);
 
   // Keep refs in sync
   configRef.current = config;
   runningRef.current = isRunning;
+  mouseToolRef.current = mouseTool;
 
   // Initialize simulation once
   useEffect(() => {
@@ -46,7 +55,6 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
 
     const dpr = setupCanvas(canvas);
 
-    // Get and cache context — apply DPR transform
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       console.error('Particle Life: Could not get canvas 2D context');
@@ -55,12 +63,18 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
     ctx.scale(dpr, dpr);
     ctxRef.current = ctx;
 
-    // Simulation uses CSS pixel dimensions (not canvas buffer pixels)
     const sim = new ParticleSimulation(config);
     sim.setDimensions(window.innerWidth, window.innerHeight);
-    sim.initializeParticles();
+
+    if (initialLayout === 'random') {
+      sim.initializeParticles();
+    } else {
+      sim.initializeWithLayout(initialLayout);
+    }
+
     simRef.current = sim;
     onSimulationRef(sim);
+    if (onCanvasRef) onCanvasRef(canvas);
 
     const onResize = () => {
       const newDpr = setupCanvas(canvas);
@@ -91,58 +105,77 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
     }
   }, [config]);
 
-  // Mouse interaction handlers
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const sim = simRef.current;
-    if (!sim) return;
-    e.preventDefault();
-    // Left click = attract, right click = repel
-    const strength = e.button === 2 ? -1.5 : 1.5;
-    sim.mouseForce = { active: true, x: e.clientX, y: e.clientY, radius: 150, strength };
+  // --- Mouse / Pointer interaction ---
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const getStrength = (): number => {
+      switch (mouseToolRef.current) {
+        case 'attract': return 1.5;
+        case 'repel': return -1.5;
+        case 'spawn': return 0;
+        default: return 0;
+      }
+    };
+
+    const handlePointerDown = (e: PointerEvent) => {
+      const sim = simRef.current;
+      if (!sim) return;
+
+      // Ignore if over the control panel (z-index check via element)
+      if ((e.target as HTMLElement) !== canvas) return;
+
+      const tool = mouseToolRef.current;
+
+      if (tool === 'spawn') {
+        // Spawn a burst of particles at cursor
+        spawnBurst(sim, e.clientX, e.clientY);
+        return;
+      }
+
+      // Attract or repel
+      sim.mouseForce.active = true;
+      sim.mouseForce.x = e.clientX;
+      sim.mouseForce.y = e.clientY;
+      sim.mouseForce.strength = getStrength();
+      canvas.setPointerCapture(e.pointerId);
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      const sim = simRef.current;
+      if (!sim || !sim.mouseForce.active) return;
+      sim.mouseForce.x = e.clientX;
+      sim.mouseForce.y = e.clientY;
+    };
+
+    const handlePointerUp = () => {
+      const sim = simRef.current;
+      if (!sim) return;
+      sim.mouseForce.active = false;
+    };
+
+    const handleContextMenu = (e: Event) => {
+      // Prevent context menu on canvas for right-click repel
+      e.preventDefault();
+    };
+
+    canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerup', handlePointerUp);
+    canvas.addEventListener('pointercancel', handlePointerUp);
+    canvas.addEventListener('contextmenu', handleContextMenu);
+
+    return () => {
+      canvas.removeEventListener('pointerdown', handlePointerDown);
+      canvas.removeEventListener('pointermove', handlePointerMove);
+      canvas.removeEventListener('pointerup', handlePointerUp);
+      canvas.removeEventListener('pointercancel', handlePointerUp);
+      canvas.removeEventListener('contextmenu', handleContextMenu);
+    };
   }, []);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const sim = simRef.current;
-    if (!sim || !sim.mouseForce.active) return;
-    sim.mouseForce.x = e.clientX;
-    sim.mouseForce.y = e.clientY;
-  }, []);
-
-  const handleMouseUp = useCallback(() => {
-    const sim = simRef.current;
-    if (!sim) return;
-    sim.mouseForce.active = false;
-  }, []);
-
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent context menu on right-click
-  }, []);
-
-  // Touch support for mobile
-  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    const sim = simRef.current;
-    if (!sim || e.touches.length === 0) return;
-    const touch = e.touches[0];
-    // Single touch = attract, two-finger = repel
-    const strength = e.touches.length >= 2 ? -1.5 : 1.5;
-    sim.mouseForce = { active: true, x: touch.clientX, y: touch.clientY, radius: 150, strength };
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    const sim = simRef.current;
-    if (!sim || !sim.mouseForce.active || e.touches.length === 0) return;
-    const touch = e.touches[0];
-    sim.mouseForce.x = touch.clientX;
-    sim.mouseForce.y = touch.clientY;
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    const sim = simRef.current;
-    if (!sim) return;
-    sim.mouseForce.active = false;
-  }, []);
-
-  // Animation loop — uses refs to avoid dependency churn
+  // Animation loop
   const animate = useCallback(() => {
     const sim = simRef.current;
     const ctx = ctxRef.current;
@@ -156,7 +189,6 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
     rafRef.current = requestAnimationFrame(animate);
   }, []);
 
-  // Start/stop animation
   useEffect(() => {
     rafRef.current = requestAnimationFrame(animate);
     return () => {
@@ -168,15 +200,7 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
     <canvas
       ref={canvasRef}
       role="img"
-      aria-label="Particle life simulation — colored particles attracting and repelling each other. Click to attract particles, right-click to repel."
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onContextMenu={handleContextMenu}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      aria-label="Particle life simulation — colored particles attracting and repelling each other"
       style={{
         position: 'fixed',
         top: 0,
@@ -185,8 +209,34 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
         height: '100vh',
         background: '#000',
         zIndex: 1,
-        cursor: 'crosshair',
+        cursor: mouseTool === 'spawn' ? 'crosshair' : mouseTool === 'repel' ? 'not-allowed' : 'grab',
+        touchAction: 'none', // prevent browser gestures on canvas
       }}
     />
   );
 };
+
+/** Spawn a burst of particles at a click position */
+function spawnBurst(sim: ParticleSimulation, x: number, y: number) {
+  const count = 20;
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2 + Math.random() * 0.3;
+    const speed = 0.5 + Math.random() * 2;
+    sim.particles.push({
+      x: x + Math.cos(angle) * 5,
+      y: y + Math.sin(angle) * 5,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      type: Math.floor(Math.random() * 6),
+    });
+  }
+}
+
+/** Take a screenshot of the canvas and download it */
+export function takeScreenshot(canvas: HTMLCanvasElement | null) {
+  if (!canvas) return;
+  const link = document.createElement('a');
+  link.download = `particle-life-${Date.now()}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}

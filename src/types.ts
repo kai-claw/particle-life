@@ -60,14 +60,14 @@ export interface MouseForce {
 export const PARTICLE_TYPES = PARTICLE_COLORS.length;
 
 export const DEFAULT_CONFIG: SimulationConfig = {
-  particleCount: 1200,
+  particleCount: 1500,
   speed: 1.0,
   friction: 0.5,
   maxRadius: 100,
   minRadius: 20,
   forceStrength: 1.0,
   trailEffect: 0.05,
-  particleSize: 2,
+  particleSize: 2.5,
   glowEnabled: true,
   colorMode: 'type',
   rules: [

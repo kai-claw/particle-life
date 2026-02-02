@@ -1,12 +1,35 @@
 import React, { useState, useCallback } from 'react';
-import type { SimulationConfig } from './types';
+import type { SimulationConfig, ColorMode, MouseTool, InitialLayout } from './types';
 import { PARTICLE_COLORS, PARTICLE_TYPES } from './types';
 import { PRESETS, randomRules } from './presets';
-import { DynamicsChart } from './DynamicsChart';
 import type { ParticleSimulation } from './simulation';
 
 /** Color names for screen readers (matches PARTICLE_COLORS order) */
 const COLOR_NAMES = ['Red', 'Green', 'Blue', 'Yellow', 'Cyan', 'Magenta'];
+
+/** Initial layout options */
+const LAYOUTS: { id: InitialLayout; emoji: string; name: string }[] = [
+  { id: 'random', emoji: '🎲', name: 'Random' },
+  { id: 'bigbang', emoji: '💥', name: 'Big Bang' },
+  { id: 'spiral', emoji: '🌀', name: 'Spiral' },
+  { id: 'grid', emoji: '⊞', name: 'Grid' },
+  { id: 'ring', emoji: '⭕', name: 'Rings' },
+  { id: 'clusters', emoji: '🫧', name: 'Clusters' },
+];
+
+/** Color mode options */
+const COLOR_MODES: { id: ColorMode; emoji: string; name: string; desc: string }[] = [
+  { id: 'type', emoji: '🎨', name: 'Species', desc: 'Color by particle type' },
+  { id: 'velocity', emoji: '🌡️', name: 'Velocity', desc: 'Plasma heatmap by speed' },
+  { id: 'density', emoji: '🔬', name: 'Density', desc: 'Cool→warm by crowding' },
+];
+
+/** Mouse tool options */
+const MOUSE_TOOLS: { id: MouseTool; emoji: string; name: string }[] = [
+  { id: 'attract', emoji: '🧲', name: 'Attract' },
+  { id: 'repel', emoji: '💨', name: 'Repel' },
+  { id: 'spawn', emoji: '✨', name: 'Spawn' },
+];
 
 interface ControlPanelProps {
   config: SimulationConfig;
@@ -14,7 +37,13 @@ interface ControlPanelProps {
   isRunning: boolean;
   onToggleRunning: () => void;
   onReset: () => void;
+  onResetWithLayout: (layout: InitialLayout) => void;
+  onScreenshot: () => void;
+  mouseTool: MouseTool;
+  onMouseToolChange: (tool: MouseTool) => void;
   simulation: ParticleSimulation | null;
+  showChart: boolean;
+  onToggleChart: () => void;
 }
 
 const Slider: React.FC<{
@@ -54,11 +83,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   isRunning,
   onToggleRunning,
   onReset,
+  onResetWithLayout,
+  onScreenshot,
+  mouseTool,
+  onMouseToolChange,
   simulation,
+  showChart,
+  onToggleChart,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [activeTab, setActiveTab] = useState<'controls' | 'rules' | 'presets'>('controls');
-  const [showChart, setShowChart] = useState(false);
+  const [activeTab, setActiveTab] = useState<'controls' | 'rules' | 'presets' | 'creative'>('controls');
 
   const updateConfig = useCallback(
     (updates: Partial<SimulationConfig>) => {
@@ -82,7 +116,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
   const applyPreset = useCallback(
     (preset: { config: Partial<SimulationConfig>; name: string }) => {
-      // Random preset: regenerate fresh rules on every click
       if (preset.name === 'Random') {
         onConfigChange({ ...config, ...preset.config, rules: randomRules() });
       } else {
@@ -137,11 +170,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         <button className="btn-secondary" onClick={randomizeRules}>
           🎲 Randomize
         </button>
+        <button className="btn-secondary btn-screenshot" onClick={onScreenshot} title="Save screenshot (PNG)">
+          📸
+        </button>
       </div>
 
       {/* Tabs */}
       <div className="tab-bar" role="tablist" aria-label="Control panel sections">
-        {(['controls', 'rules', 'presets'] as const).map((tab) => (
+        {(['controls', 'rules', 'presets', 'creative'] as const).map((tab) => (
           <button
             key={tab}
             role="tab"
@@ -151,7 +187,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             className={`tab ${activeTab === tab ? 'tab-active' : ''}`}
             onClick={() => setActiveTab(tab)}
           >
-            {tab === 'controls' ? '⚙' : tab === 'rules' ? '🧪' : '📋'}{' '}
+            {tab === 'controls' ? '⚙' : tab === 'rules' ? '🧪' : tab === 'presets' ? '📋' : '✨'}{' '}
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
@@ -198,7 +234,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               max={200}
               step={5}
               onChange={(v) => {
-                // Enforce min ≤ max invariant
                 const updates: Partial<SimulationConfig> = { maxRadius: v };
                 if (config.minRadius > v) updates.minRadius = Math.round(v * 0.3);
                 updateConfig(updates);
@@ -244,28 +279,27 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               onChange={(v) => updateConfig({ particleSize: v })}
             />
 
-            {/* Visual toggles */}
+            {/* Glow toggle */}
             <div className="toggle-row">
-              <label className="toggle-label" htmlFor="toggle-glow">✨ Glow Mode</label>
+              <label htmlFor="toggle-glow" className="slider-label">✨ Glow Effect</label>
               <button
                 id="toggle-glow"
                 className={`toggle-btn ${config.glowEnabled ? 'toggle-on' : ''}`}
                 onClick={() => updateConfig({ glowEnabled: !config.glowEnabled })}
                 aria-pressed={config.glowEnabled}
-                role="switch"
               >
                 {config.glowEnabled ? 'ON' : 'OFF'}
               </button>
             </div>
 
+            {/* Energy Chart toggle */}
             <div className="toggle-row">
-              <label className="toggle-label" htmlFor="toggle-chart">📊 Energy Chart</label>
+              <label htmlFor="toggle-chart" className="slider-label">📊 Energy Chart</label>
               <button
                 id="toggle-chart"
                 className={`toggle-btn ${showChart ? 'toggle-on' : ''}`}
-                onClick={() => setShowChart(v => !v)}
+                onClick={onToggleChart}
                 aria-pressed={showChart}
-                role="switch"
               >
                 {showChart ? 'ON' : 'OFF'}
               </button>
@@ -273,7 +307,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
             <div className="mouse-hint">
               <span className="hint-icon" aria-hidden="true">🖱️</span>
-              <span className="hint-text">Click to attract · Right-click to repel</span>
+              <span className="hint-text">Click & drag to interact · Switch tools in ✨ Creative tab</span>
             </div>
           </div>
         )}
@@ -293,7 +327,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 gridTemplateColumns: `32px repeat(${PARTICLE_TYPES}, 1fr)`,
               }}
             >
-              {/* Column headers */}
               <div role="columnheader" />
               {PARTICLE_COLORS.map((color, i) => (
                 <div
@@ -306,7 +339,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 />
               ))}
 
-              {/* Matrix rows */}
               {config.rules.map((row, fromType) => (
                 <React.Fragment key={`row-${fromType}`}>
                   <div
@@ -366,10 +398,59 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             ))}
           </div>
         )}
-      </div>
 
-      {/* Species energy dynamics chart */}
-      <DynamicsChart simulation={simulation} visible={showChart} />
+        {activeTab === 'creative' && (
+          <div className="creative-tab" role="tabpanel" id="tabpanel-creative" aria-labelledby="tab-creative">
+            {/* Color Mode */}
+            <div className="section-label">Color Mode</div>
+            <div className="mode-picker">
+              {COLOR_MODES.map((mode) => (
+                <button
+                  key={mode.id}
+                  className={`mode-btn ${config.colorMode === mode.id ? 'mode-active' : ''}`}
+                  onClick={() => updateConfig({ colorMode: mode.id })}
+                  title={mode.desc}
+                  aria-pressed={config.colorMode === mode.id}
+                >
+                  <span className="mode-emoji" aria-hidden="true">{mode.emoji}</span>
+                  <span className="mode-name">{mode.name}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Mouse Tool */}
+            <div className="section-label">Mouse Tool <span className="section-hint">(click & drag on canvas)</span></div>
+            <div className="mode-picker">
+              {MOUSE_TOOLS.map((tool) => (
+                <button
+                  key={tool.id}
+                  className={`mode-btn ${mouseTool === tool.id ? 'mode-active' : ''}`}
+                  onClick={() => onMouseToolChange(tool.id)}
+                  aria-pressed={mouseTool === tool.id}
+                >
+                  <span className="mode-emoji" aria-hidden="true">{tool.emoji}</span>
+                  <span className="mode-name">{tool.name}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Initial Layout */}
+            <div className="section-label">Launch Pattern <span className="section-hint">(resets simulation)</span></div>
+            <div className="layout-picker">
+              {LAYOUTS.map((layout) => (
+                <button
+                  key={layout.id}
+                  className="layout-btn"
+                  onClick={() => onResetWithLayout(layout.id)}
+                  title={`Reset with ${layout.name} pattern`}
+                >
+                  <span aria-hidden="true">{layout.emoji}</span> {layout.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

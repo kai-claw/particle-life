@@ -413,6 +413,255 @@ input[type="range"]::-moz-range-thumb {
   border-radius: 10px;
 }
 
+/* ── Floating Chart (bottom right) ──────────── */
+.floating-chart {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 15;
+  background: rgba(10, 10, 20, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  padding: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.3s ease;
+}
+
+/* ── Creative Tab ───────────────────────────── */
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  margin-top: 14px;
+}
+
+.section-label:first-child {
+  margin-top: 0;
+}
+
+.section-hint {
+  font-weight: 400;
+  text-transform: none;
+  color: #666;
+  letter-spacing: 0;
+  font-size: 10px;
+}
+
+.mode-picker {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.mode-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #aaa;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 10px;
+}
+
+.mode-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ddd;
+}
+
+.mode-btn.mode-active {
+  background: rgba(51, 255, 119, 0.1);
+  border-color: rgba(51, 255, 119, 0.4);
+  color: #33ff77;
+  box-shadow: 0 0 10px rgba(51, 255, 119, 0.1);
+}
+
+.mode-emoji {
+  font-size: 16px;
+}
+
+.mode-name {
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.layout-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+}
+
+.layout-btn {
+  padding: 8px 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s ease;
+}
+
+.layout-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  transform: scale(1.02);
+}
+
+.layout-btn:active {
+  transform: scale(0.97);
+  background: rgba(51, 255, 119, 0.15);
+  border-color: rgba(51, 255, 119, 0.3);
+  color: #33ff77;
+}
+
+/* ── Screenshot button ─────────────────────── */
+.btn-screenshot {
+  flex: 0 0 auto !important;
+  width: 36px;
+  padding: 8px !important;
+  font-size: 14px !important;
+}
+
+/* ── Creative Tab ────────────────────────────── */
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888;
+  margin: 12px 0 8px;
+}
+
+.section-label:first-child {
+  margin-top: 0;
+}
+
+.section-hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #666;
+  font-size: 10px;
+}
+
+.mode-picker {
+  display: flex;
+  gap: 4px;
+}
+
+.mode-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #aaa;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 11px;
+}
+
+.mode-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ddd;
+}
+
+.mode-active {
+  background: rgba(51, 255, 119, 0.12) !important;
+  border-color: rgba(51, 255, 119, 0.4) !important;
+  color: #33ff77 !important;
+}
+
+.mode-emoji {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.mode-name {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.layout-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.layout-btn {
+  padding: 8px 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #bbb;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.layout-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  transform: scale(1.03);
+}
+
+.layout-btn:active {
+  transform: scale(0.97);
+}
+
+/* ── Toggle Button ───────────────────────────── */
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.toggle-btn {
+  padding: 4px 14px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toggle-on {
+  background: rgba(51, 255, 119, 0.15);
+  border-color: rgba(51, 255, 119, 0.4);
+  color: #33ff77;
+}
+
+/* ── Screenshot Button ───────────────────────── */
+.btn-screenshot {
+  flex: 0 0 auto !important;
+  width: 36px;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
 /* ── Scrollbar ───────────────────────────────── */
 .control-panel::-webkit-scrollbar {
   width: 4px;
@@ -523,6 +772,17 @@ input:focus-visible {
     right: 12px;
     left: 12px;
     max-width: none;
+  }
+
+  .floating-chart {
+    bottom: auto;
+    top: 12px;
+    right: 12px;
+    left: 12px;
+  }
+
+  .layout-picker {
+    grid-template-columns: 1fr 1fr;
   }
 
   /* Drag handle hint for bottom sheet */
