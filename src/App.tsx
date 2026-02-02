@@ -207,6 +207,8 @@ const AppInner: React.FC = () => {
         initialLayout={initialLayout}
         onCanvasRef={(el) => { canvasRef.current = el; }}
       />
+      {/* Subtle vignette to frame the simulation */}
+      <div className="canvas-vignette" aria-hidden="true" />
       <ControlPanel
         config={config}
         onConfigChange={handleConfigChange}

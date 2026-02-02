@@ -59,27 +59,36 @@ const Slider: React.FC<{
   format?: (v: number) => string;
   onChange: (v: number) => void;
   id: string;
-}> = ({ label, value, min, max, step, format, onChange, id }) => (
-  <div className="slider-row">
-    <div className="slider-header">
-      <label className="slider-label" htmlFor={id}>{label}</label>
-      <span className="slider-value" aria-hidden="true">{format ? format(value) : value}</span>
+}> = ({ label, value, min, max, step, format, onChange, id }) => {
+  // Compute fill percentage for the colored track
+  const pct = ((value - min) / (max - min)) * 100;
+  const trackStyle = {
+    background: `linear-gradient(to right, rgba(51, 255, 119, 0.5) 0%, rgba(51, 255, 119, 0.35) ${pct}%, rgba(255, 255, 255, 0.1) ${pct}%)`,
+  };
+
+  return (
+    <div className="slider-row">
+      <div className="slider-header">
+        <label className="slider-label" htmlFor={id}>{label}</label>
+        <span className="slider-value" aria-hidden="true">{format ? format(value) : value}</span>
+      </div>
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        aria-valuetext={format ? format(value) : String(value)}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        style={trackStyle}
+      />
     </div>
-    <input
-      id={id}
-      type="range"
-      min={min}
-      max={max}
-      step={step}
-      value={value}
-      aria-valuemin={min}
-      aria-valuemax={max}
-      aria-valuenow={value}
-      aria-valuetext={format ? format(value) : String(value)}
-      onChange={(e) => onChange(parseFloat(e.target.value))}
-    />
-  </div>
-);
+  );
+};
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
   config,
@@ -141,6 +150,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   );
 
   const fps = simulation?.fps ?? 0;
+  const fpsColor = fps >= 50 ? '#33ff77' : fps >= 30 ? '#ffcc33' : '#ff5566';
 
   if (!isExpanded) {
     return (
@@ -161,7 +171,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       <div className="panel-header">
         <div className="panel-title">
           <h2>Particle Life</h2>
-          <span className="fps-badge" aria-live="polite" aria-label={`${fps} frames per second`}>{fps} FPS</span>
+          <span
+            className="fps-badge"
+            aria-live="polite"
+            aria-label={`${fps} frames per second`}
+            style={{ color: fpsColor, borderColor: `${fpsColor}33`, border: `1px solid ${fpsColor}33` }}
+          >{fps} FPS</span>
         </div>
         <button
           className="close-btn"
@@ -206,6 +221,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
+        {/* Sliding indicator */}
+        <span
+          className="tab-indicator"
+          style={{ transform: `translateX(${(['controls', 'rules', 'presets', 'creative'].indexOf(activeTab)) * 100}%)` }}
+        />
       </div>
 
       {/* Tab content */}
