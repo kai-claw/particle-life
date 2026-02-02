@@ -1,7 +1,7 @@
 {
   "name": "particle-life",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Emergent behavior simulator — colored particles self-organize into living structures through configurable attraction and repulsion rules",
   "type": "module",
   "homepage": "https://kai-claw.github.io/particle-life/",

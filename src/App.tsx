@@ -189,6 +189,7 @@ const AppInner: React.FC = () => {
       if (e.code === 'KeyS') { handleScreenshot(); }
       if (e.code === 'KeyE') { setShowChart(v => !v); }
       if (e.code === 'KeyC') { setCinematic(v => !v); }
+      if (e.code === 'KeyH') { setShowHelp(v => !v); }
       if (e.code === 'Escape' && showHelp) { setShowHelp(false); }
       if (e.code === 'KeyW') { setConfig(c => ({ ...c, rules: c.rules.map(r => [...r]), webEnabled: !c.webEnabled })); }
       if (e.code === 'KeyM') { setConfig(c => ({ ...c, rules: c.rules.map(r => [...r]), mutationEnabled: !c.mutationEnabled })); }
@@ -253,6 +254,19 @@ const AppInner: React.FC = () => {
         </div>
       )}
 
+      {/* Subtle instructions bar at bottom — always visible on desktop */}
+      {!showHelp && (
+        <div className="instructions-bar" aria-hidden="true">
+          <span><kbd>Space</kbd> Pause</span>
+          <span className="separator" />
+          <span><kbd>R</kbd> Reset</span>
+          <span className="separator" />
+          <span><kbd>C</kbd> Cinematic</span>
+          <span className="separator" />
+          <span><kbd>H</kbd> Help</span>
+        </div>
+      )}
+
       {/* Help overlay */}
       {showHelp && (
         <div
@@ -280,7 +294,8 @@ const AppInner: React.FC = () => {
             <kbd>C</kbd> Cinematic
             <br />
             <kbd>W</kbd> Connection Web &nbsp;
-            <kbd>M</kbd> Mutation
+            <kbd>M</kbd> Mutation &nbsp;
+            <kbd>H</kbd> Help
           </div>
           <div className="help-dismiss">Click or press Esc to dismiss</div>
         </div>
