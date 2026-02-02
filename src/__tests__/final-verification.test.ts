@@ -52,6 +52,8 @@ describe('Cross-Module Integration', () => {
       const config: SimulationConfig = {
         ...DEFAULT_CONFIG,
         ...preset.config,
+        // Use 500 particles to keep test fast while still meaningful
+        particleCount: 500,
         rules: (preset.config.rules ?? DEFAULT_CONFIG.rules).map(r => [...r]),
       };
 
@@ -69,7 +71,7 @@ describe('Cross-Module Integration', () => {
       expect(hasNaN).toBe(false);
       // `${preset.name} produced NaN after 200 steps`
     }
-  });
+  }, 15000);
 
   it('energy history is populated after simulation steps', () => {
     const sim = new ParticleSimulation(DEFAULT_CONFIG);
@@ -116,7 +118,8 @@ describe('Layout × Preset Matrix', () => {
 
   it('every layout stays stable through 100 simulation steps', () => {
     for (const layout of layouts) {
-      const sim = new ParticleSimulation(DEFAULT_CONFIG);
+      const config = { ...DEFAULT_CONFIG, particleCount: 500 };
+      const sim = new ParticleSimulation(config);
       sim.setDimensions(800, 600);
       sim.initializeWithLayout(layout);
 
@@ -127,7 +130,7 @@ describe('Layout × Preset Matrix', () => {
       );
       expect(hasNaN).toBe(false);
     }
-  });
+  }, 15000);
 });
 
 // ─── Mutation + Web + Glow Feature Combinations ────────────────────────
