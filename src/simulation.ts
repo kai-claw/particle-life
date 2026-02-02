@@ -1,94 +1,16 @@
 import type { Particle, SimulationConfig, MouseForce, InitialLayout } from './types';
-import { PARTICLE_TYPES, PARTICLE_COLORS, PARTICLE_RGB, hslToRgb } from './types';
-
-/**
- * Spatial hash grid for O(n) neighbor lookups instead of O(n²).
- * Supports toroidal wrapping — particles near edges correctly find
- * neighbors on the opposite side of the world.
- */
-class SpatialHash {
-  private cellSize: number;
-  private grid: Map<number, Particle[]>;
-  private cellsW: number = 0;
-  private cellsH: number = 0;
-
-  // Reusable result buffer to avoid per-call allocations
-  private resultBuffer: Particle[] = [];
-
-  constructor(cellSize: number) {
-    this.cellSize = Math.max(cellSize, 1);
-    this.grid = new Map();
-  }
-
-  /** Set world dimensions for toroidal cell wrapping */
-  setWorldSize(w: number, h: number) {
-    this.cellsW = Math.max(1, Math.ceil(w / this.cellSize));
-    this.cellsH = Math.max(1, Math.ceil(h / this.cellSize));
-  }
-
-  clear() {
-    this.grid.clear();
-  }
-
-  private key(cx: number, cy: number): number {
-    // Pack two 16-bit ints into one number — avoids string keys
-    return ((cx & 0xffff) << 16) | (cy & 0xffff);
-  }
-
-  add(p: Particle) {
-    const cx = Math.floor(p.x / this.cellSize);
-    const cy = Math.floor(p.y / this.cellSize);
-    const k = this.key(cx, cy);
-    let list = this.grid.get(k);
-    if (!list) {
-      list = [];
-      this.grid.set(k, list);
-    }
-    list.push(p);
-  }
-
-  /**
-   * Get particles near (x, y), wrapping toroidally.
-   * Returns a shared buffer — caller must consume before next call.
-   */
-  getNearby(x: number, y: number): Particle[] {
-    const cx = Math.floor(x / this.cellSize);
-    const cy = Math.floor(y / this.cellSize);
-    const buf = this.resultBuffer;
-    buf.length = 0;
-
-    const cw = this.cellsW;
-    const ch = this.cellsH;
-
-    for (let dx = -1; dx <= 1; dx++) {
-      // Toroidal cell wrap
-      let ncx = cx + dx;
-      if (ncx < 0) ncx += cw;
-      else if (ncx >= cw) ncx -= cw;
-
-      for (let dy = -1; dy <= 1; dy++) {
-        let ncy = cy + dy;
-        if (ncy < 0) ncy += ch;
-        else if (ncy >= ch) ncy -= ch;
-
-        const list = this.grid.get(this.key(ncx, ncy));
-        if (list) {
-          for (let i = 0; i < list.length; i++) buf.push(list[i]);
-        }
-      }
-    }
-    return buf;
-  }
-}
+import { PARTICLE_TYPES } from './types';
+import { SpatialHash } from './spatial-hash';
+import { ParticleRenderer } from './renderer';
 
 /**
  * The standard Particle Life force function.
- * 
+ *
  * At very close range (d < beta) → repulsion that prevents overlap.
  * At medium range (beta < d < 1) → attraction or repulsion based on the rule value.
  * Beyond the radius → no force.
  */
-function particleLifeForce(normalizedDist: number, attraction: number, beta: number): number {
+export function particleLifeForce(normalizedDist: number, attraction: number, beta: number): number {
   if (normalizedDist < beta) {
     return normalizedDist / beta - 1;
   }
@@ -100,55 +22,13 @@ function particleLifeForce(normalizedDist: number, attraction: number, beta: num
   return 0;
 }
 
-/**
- * Map a speed value to an RGB color using a thermal/plasma gradient.
- * Slow (0) = deep blue/purple → fast (1) = white/yellow
- */
-function velocityToColor(normalizedSpeed: number): [number, number, number] {
-  const t = Math.max(0, Math.min(1, normalizedSpeed));
-  // Plasma-like gradient: purple → blue → cyan → green → yellow → white
-  if (t < 0.2) {
-    // Deep purple to blue
-    const s = t / 0.2;
-    return [Math.round(40 + 20 * s), Math.round(10 + 30 * s), Math.round(80 + 100 * s)];
-  }
-  if (t < 0.4) {
-    // Blue to cyan
-    const s = (t - 0.2) / 0.2;
-    return [Math.round(60 - 30 * s), Math.round(40 + 160 * s), Math.round(180 + 60 * s)];
-  }
-  if (t < 0.6) {
-    // Cyan to green
-    const s = (t - 0.4) / 0.2;
-    return [Math.round(30 + 40 * s), Math.round(200 + 55 * s), Math.round(240 - 100 * s)];
-  }
-  if (t < 0.8) {
-    // Green to yellow
-    const s = (t - 0.6) / 0.2;
-    return [Math.round(70 + 185 * s), Math.round(255), Math.round(140 - 100 * s)];
-  }
-  // Yellow to white-hot
-  const s = (t - 0.8) / 0.2;
-  return [255, 255, Math.round(40 + 215 * s)];
-}
-
-/**
- * Map density (neighbor count) to an RGB color.
- * Isolated = dark cool → crowded = bright warm
- */
-function densityToColor(normalizedDensity: number): [number, number, number] {
-  const t = Math.max(0, Math.min(1, normalizedDensity));
-  // Cool dark → warm bright
-  const [r, g, b] = hslToRgb(0.7 - t * 0.7, 0.9, 0.15 + t * 0.55);
-  return [r, g, b];
-}
-
 export class ParticleSimulation {
   particles: Particle[] = [];
   private config: SimulationConfig;
   private width: number = 0;
   private height: number = 0;
   private spatialHash: SpatialHash | null = null;
+  private renderer = new ParticleRenderer();
   private frameCount: number = 0;
   private lastFpsTime: number = 0;
   fps: number = 0;
@@ -260,7 +140,6 @@ export class ParticleSimulation {
 
     switch (layout) {
       case 'bigbang': {
-        // All particles start clustered at center with random outward velocities
         const spread = Math.min(w, h) * 0.03;
         for (let i = 0; i < n; i++) {
           const angle = Math.random() * Math.PI * 2;
@@ -278,9 +157,8 @@ export class ParticleSimulation {
       }
 
       case 'spiral': {
-        // Fibonacci spiral with tangential velocities for beautiful unwinding
         const maxR = Math.min(w, h) * 0.4;
-        const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // ~137.5°
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
         for (let i = 0; i < n; i++) {
           const t = i / n;
           const r = maxR * Math.sqrt(t);
@@ -298,7 +176,6 @@ export class ParticleSimulation {
       }
 
       case 'grid': {
-        // Regular grid — types assigned in checker pattern
         const cols = Math.ceil(Math.sqrt(n * (w / h)));
         const rows = Math.ceil(n / cols);
         const spacingX = w / (cols + 1);
@@ -318,7 +195,6 @@ export class ParticleSimulation {
       }
 
       case 'ring': {
-        // Concentric rings — each ring is a different type
         const rings = PARTICLE_TYPES;
         const perRing = Math.floor(n / rings);
         const maxRingR = Math.min(w, h) * 0.4;
@@ -342,7 +218,6 @@ export class ParticleSimulation {
       }
 
       case 'clusters': {
-        // Separate clusters per type, scattered around the world
         const clusterCenters: { x: number; y: number }[] = [];
         const margin = Math.min(w, h) * 0.15;
         for (let t = 0; t < PARTICLE_TYPES; t++) {
@@ -369,7 +244,6 @@ export class ParticleSimulation {
       }
 
       default:
-        // 'random' — standard random init
         this.initializeParticles();
         return;
     }
@@ -491,7 +365,6 @@ export class ParticleSimulation {
         p.vy = 0;
       }
 
-      // Track max speed for velocity color normalization
       const spd = p.vx * p.vx + p.vy * p.vy;
       if (spd > maxSpd) maxSpd = spd;
 
@@ -547,224 +420,18 @@ export class ParticleSimulation {
     return this.energyHistory;
   }
 
+  /** Delegate rendering to the dedicated ParticleRenderer */
   render(ctx: CanvasRenderingContext2D) {
-    const { trailEffect, particleSize, glowEnabled, colorMode } = this.config;
-    const w = this.width;
-    const h = this.height;
-
-    // Trail/clear
-    if (trailEffect > 0) {
-      ctx.fillStyle = `rgba(0, 0, 0, ${trailEffect})`;
-      ctx.fillRect(0, 0, w, h);
-    } else {
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0, 0, w, h);
-    }
-
-    const particles = this.particles;
-
-    if (colorMode === 'type') {
-      // Standard type-based coloring with optional glow
-      if (glowEnabled && particleSize >= 1.5) {
-        this.renderGlow(ctx, particles, particleSize);
-      } else {
-        this.renderFlat(ctx, particles, particleSize);
-      }
-    } else if (colorMode === 'velocity') {
-      this.renderVelocity(ctx, particles, particleSize, glowEnabled);
-    } else if (colorMode === 'density') {
-      this.renderDensity(ctx, particles, particleSize, glowEnabled);
-    }
-
-    // Draw mouse force radius indicator
-    if (this.mouseForce.active) {
-      this.renderMouseCursor(ctx);
-    }
-  }
-
-  /** Standard flat rendering — batch by type */
-  private renderFlat(ctx: CanvasRenderingContext2D, particles: Particle[], size: number) {
-    for (let t = 0; t < PARTICLE_TYPES; t++) {
-      ctx.fillStyle = PARTICLE_COLORS[t];
-      ctx.beginPath();
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
-        if (p.type !== t) continue;
-        ctx.moveTo(p.x + size, p.y);
-        ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
-      }
-      ctx.fill();
-    }
-  }
-
-  /** Glow rendering — radial gradients with additive blending */
-  private renderGlow(ctx: CanvasRenderingContext2D, particles: Particle[], size: number) {
-    const glowSize = size * 3;
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter'; // additive blending!
-
-    for (let t = 0; t < PARTICLE_TYPES; t++) {
-      const rgb = PARTICLE_RGB[t];
-
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
-        if (p.type !== t) continue;
-
-        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowSize);
-        grad.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.8)`);
-        grad.addColorStop(0.3, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`);
-        grad.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
-
-        ctx.fillStyle = grad;
-        ctx.fillRect(p.x - glowSize, p.y - glowSize, glowSize * 2, glowSize * 2);
-      }
-    }
-
-    ctx.restore();
-
-    // Also draw solid core
-    for (let t = 0; t < PARTICLE_TYPES; t++) {
-      ctx.fillStyle = PARTICLE_COLORS[t];
-      ctx.beginPath();
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
-        if (p.type !== t) continue;
-        ctx.moveTo(p.x + size * 0.7, p.y);
-        ctx.arc(p.x, p.y, size * 0.7, 0, Math.PI * 2);
-      }
-      ctx.fill();
-    }
-  }
-
-  /** Velocity-based rainbow coloring — particles colored by speed */
-  private renderVelocity(ctx: CanvasRenderingContext2D, particles: Particle[], size: number, glow: boolean) {
-    const maxSpd = this.maxSpeedObserved;
-    const invMax = 1 / maxSpd;
-
-    if (glow && size >= 1.5) {
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const glowSize = size * 3;
-
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
-        const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
-        const norm = spd * invMax;
-        const [r, g, b] = velocityToColor(norm);
-
-        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowSize);
-        grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.7)`);
-        grad.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, 0.2)`);
-        grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-        ctx.fillStyle = grad;
-        ctx.fillRect(p.x - glowSize, p.y - glowSize, glowSize * 2, glowSize * 2);
-      }
-
-      ctx.restore();
-    }
-
-    // Solid cores per particle
-    for (let i = 0; i < particles.length; i++) {
-      const p = particles[i];
-      const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
-      const norm = spd * invMax;
-      const [r, g, b] = velocityToColor(norm);
-
-      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  /** Density-based coloring — particles colored by local neighbor count */
-  private renderDensity(ctx: CanvasRenderingContext2D, particles: Particle[], size: number, glow: boolean) {
-    // Find max neighbor count for normalization
-    const counts = this.neighborCounts;
-    let maxN = 1;
-    for (let i = 0; i < particles.length; i++) {
-      if (i < counts.length && counts[i] > maxN) maxN = counts[i];
-    }
-    const invMax = 1 / maxN;
-
-    if (glow && size >= 1.5) {
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const glowSize = size * 3;
-
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
-        const nc = i < counts.length ? counts[i] : 0;
-        const norm = nc * invMax;
-        const [r, g, b] = densityToColor(norm);
-
-        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowSize);
-        grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.6)`);
-        grad.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, 0.15)`);
-        grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-        ctx.fillStyle = grad;
-        ctx.fillRect(p.x - glowSize, p.y - glowSize, glowSize * 2, glowSize * 2);
-      }
-
-      ctx.restore();
-    }
-
-    for (let i = 0; i < particles.length; i++) {
-      const p = particles[i];
-      const nc = i < counts.length ? counts[i] : 0;
-      const norm = nc * invMax;
-      const [r, g, b] = densityToColor(norm);
-
-      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  /** Draw a visual indicator around the mouse cursor when force is active */
-  private renderMouseCursor(ctx: CanvasRenderingContext2D) {
-    const mf = this.mouseForce;
-    const isAttract = mf.strength > 0;
-
-    ctx.save();
-
-    // Outer ring
-    ctx.strokeStyle = isAttract
-      ? 'rgba(51, 255, 119, 0.4)'
-      : 'rgba(255, 85, 102, 0.4)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([6, 4]);
-    ctx.beginPath();
-    ctx.arc(mf.x, mf.y, mf.radius, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Inner glow
-    const grad = ctx.createRadialGradient(mf.x, mf.y, 0, mf.x, mf.y, mf.radius);
-    grad.addColorStop(0, isAttract
-      ? 'rgba(51, 255, 119, 0.08)'
-      : 'rgba(255, 85, 102, 0.08)');
-    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(mf.x, mf.y, mf.radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Center crosshair
-    ctx.setLineDash([]);
-    ctx.strokeStyle = isAttract
-      ? 'rgba(51, 255, 119, 0.6)'
-      : 'rgba(255, 85, 102, 0.6)';
-    ctx.lineWidth = 1;
-    const cs = 8;
-    ctx.beginPath();
-    ctx.moveTo(mf.x - cs, mf.y);
-    ctx.lineTo(mf.x + cs, mf.y);
-    ctx.moveTo(mf.x, mf.y - cs);
-    ctx.lineTo(mf.x, mf.y + cs);
-    ctx.stroke();
-
-    ctx.restore();
+    this.renderer.render(
+      ctx,
+      this.particles,
+      this.config,
+      this.width,
+      this.height,
+      this.mouseForce,
+      this.maxSpeedObserved,
+      this.neighborCounts,
+    );
   }
 
   getConfig(): SimulationConfig {
