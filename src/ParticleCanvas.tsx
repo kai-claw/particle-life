@@ -27,6 +27,7 @@ function setupCanvas(canvas: HTMLCanvasElement): number {
   return dpr;
 }
 
+// Default export for fast-refresh compliance (no non-component exports)
 export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
   config,
   isRunning,
@@ -232,11 +233,4 @@ function spawnBurst(sim: ParticleSimulation, x: number, y: number) {
   }
 }
 
-/** Take a screenshot of the canvas and download it */
-export function takeScreenshot(canvas: HTMLCanvasElement | null) {
-  if (!canvas) return;
-  const link = document.createElement('a');
-  link.download = `particle-life-${Date.now()}.png`;
-  link.href = canvas.toDataURL('image/png');
-  link.click();
-}
+// takeScreenshot moved to ./screenshot.ts for fast-refresh compliance

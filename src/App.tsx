@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { ParticleCanvas, takeScreenshot } from './ParticleCanvas';
+import { ParticleCanvas } from './ParticleCanvas';
+import { takeScreenshot } from './screenshot';
 import { ControlPanel } from './ControlPanel';
 import { DynamicsChart } from './DynamicsChart';
 import { ErrorBoundary } from './ErrorBoundary';
