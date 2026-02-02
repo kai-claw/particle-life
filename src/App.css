@@ -533,6 +533,94 @@ input[type="range"]::-moz-range-thumb {
   font-size: 14px !important;
 }
 
+/* ── Active preset indicator ─────────────── */
+.preset-card.preset-active {
+  background: rgba(51, 255, 119, 0.08);
+  border-color: rgba(51, 255, 119, 0.3);
+  box-shadow: 0 0 12px rgba(51, 255, 119, 0.08);
+}
+
+.preset-card.preset-active .preset-name {
+  color: #33ff77;
+}
+
+.preset-active-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #33ff77;
+  box-shadow: 0 0 6px rgba(51, 255, 119, 0.6);
+  flex-shrink: 0;
+  margin-left: auto;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.7); }
+}
+
+/* ── Cinematic toggle in presets tab ──────── */
+.cinematic-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.cinematic-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cinematic-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ddd;
+}
+
+.cinematic-sublabel {
+  font-size: 10px;
+  color: #777;
+}
+
+/* ── Cinematic badge (floating) ──────────── */
+.cinematic-badge {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  background: rgba(10, 10, 20, 0.8);
+  border: 1px solid rgba(51, 255, 119, 0.2);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 12px;
+  color: #aaa;
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: fadeIn 0.4s ease;
+}
+
+.cinematic-badge strong {
+  color: #33ff77;
+}
+
+.cinematic-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #33ff77;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
 /* ── Creative Tab ────────────────────────────── */
 .section-label {
   font-size: 11px;

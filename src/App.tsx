@@ -13,9 +13,50 @@ import './App.css';
 const INITIAL_CONFIG: SimulationConfig = {
   ...DEFAULT_CONFIG,
   ...PRESETS.find(p => p.name === 'Nebula')!.config,
-  // Override rules to be a full matrix (preset may be partial)
   rules: (PRESETS.find(p => p.name === 'Nebula')!.config.rules ?? DEFAULT_CONFIG.rules).map(r => [...r]),
 };
+
+/** Smoothstep interpolation for organic transitions */
+function smoothstep(t: number): number {
+  return t * t * (3 - 2 * t);
+}
+
+/** Lerp between two full configs, focusing on rules + continuous params */
+function lerpConfig(from: SimulationConfig, to: SimulationConfig, t: number): SimulationConfig {
+  const st = smoothstep(Math.max(0, Math.min(1, t)));
+  const lerp = (a: number, b: number) => a + (b - a) * st;
+
+  // Lerp rules matrix
+  const rules = from.rules.map((row, i) =>
+    row.map((val, j) => {
+      const target = to.rules[i]?.[j] ?? val;
+      return Math.round(lerp(val, target) * 1000) / 1000;
+    })
+  );
+
+  return {
+    ...to,
+    // Lerp continuous parameters for smooth morphing
+    speed: lerp(from.speed, to.speed),
+    friction: lerp(from.friction, to.friction),
+    maxRadius: Math.round(lerp(from.maxRadius, to.maxRadius)),
+    minRadius: Math.round(lerp(from.minRadius, to.minRadius)),
+    forceStrength: lerp(from.forceStrength, to.forceStrength),
+    trailEffect: Math.round(lerp(from.trailEffect, to.trailEffect) * 100) / 100,
+    particleSize: Math.round(lerp(from.particleSize, to.particleSize) * 10) / 10,
+    // Snap discrete values at halfway
+    particleCount: st < 0.5 ? from.particleCount : to.particleCount,
+    glowEnabled: st < 0.5 ? from.glowEnabled : to.glowEnabled,
+    colorMode: st < 0.5 ? from.colorMode : to.colorMode,
+    rules,
+  };
+}
+
+/** Curated preset order for cinematic autoplay (skip Random) */
+const CINEMATIC_ORDER = PRESETS.filter(p => p.name !== 'Random');
+
+const MORPH_DURATION_MS = 1200; // 1.2s smooth transition
+const CINEMATIC_DWELL_MS = 12000; // 12s per preset in cinematic mode
 
 const AppInner: React.FC = () => {
   const [config, setConfig] = useState<SimulationConfig>(INITIAL_CONFIG);
@@ -26,8 +67,56 @@ const AppInner: React.FC = () => {
   const [mouseTool, setMouseTool] = useState<MouseTool>('attract');
   const [initialLayout, setInitialLayout] = useState<InitialLayout>('bigbang');
   const [resetKey, setResetKey] = useState(0);
+  const [cinematic, setCinematic] = useState(false);
+  const [activePresetName, setActivePresetName] = useState<string>('Nebula');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // Morphing state
+  const morphRef = useRef<{
+    from: SimulationConfig;
+    to: SimulationConfig;
+    startTime: number;
+    toName: string;
+    raf: number;
+  } | null>(null);
+
+  /** Start a smooth morph from current config to target */
+  const morphToConfig = useCallback((targetConfig: SimulationConfig, presetName: string) => {
+    // Cancel any existing morph
+    if (morphRef.current?.raf) cancelAnimationFrame(morphRef.current.raf);
+
+    const fromConfig: SimulationConfig = {
+      ...config,
+      rules: config.rules.map(r => [...r]),
+    };
+    const toConfig: SimulationConfig = {
+      ...config,
+      ...targetConfig,
+      rules: (targetConfig.rules ?? config.rules).map(r => [...r]),
+    };
+
+    const startTime = performance.now();
+
+    const tick = () => {
+      const elapsed = performance.now() - startTime;
+      const t = Math.min(elapsed / MORPH_DURATION_MS, 1);
+      const interpolated = lerpConfig(fromConfig, toConfig, t);
+
+      setConfig(interpolated);
+
+      if (t < 1) {
+        morphRef.current = { from: fromConfig, to: toConfig, startTime, toName: presetName, raf: requestAnimationFrame(tick) };
+      } else {
+        setConfig(toConfig);
+        setActivePresetName(presetName);
+        morphRef.current = null;
+      }
+    };
+
+    morphRef.current = { from: fromConfig, to: toConfig, startTime, toName: presetName, raf: requestAnimationFrame(tick) };
+  }, [config]);
+
+  /** Apply a preset with smooth morphing */
   const handleConfigChange = useCallback((newConfig: SimulationConfig) => {
     setConfig(newConfig);
   }, []);
@@ -50,10 +139,30 @@ const AppInner: React.FC = () => {
     takeScreenshot(canvasRef.current);
   }, []);
 
-  // Capture canvas ref from the ParticleCanvas component
   const handleSimulationRef = useCallback((sim: ParticleSimulation | null) => {
     setSimulation(sim);
   }, []);
+
+  // Cinematic autoplay — cycle through presets
+  useEffect(() => {
+    if (!cinematic) return;
+
+    let idx = CINEMATIC_ORDER.findIndex(p => p.name === activePresetName);
+    if (idx < 0) idx = 0;
+
+    const timer = setInterval(() => {
+      idx = (idx + 1) % CINEMATIC_ORDER.length;
+      const preset = CINEMATIC_ORDER[idx];
+      const targetConfig: SimulationConfig = {
+        ...config,
+        ...preset.config,
+        rules: (preset.config.rules ?? config.rules).map(r => [...r]),
+      };
+      morphToConfig(targetConfig, preset.name);
+    }, CINEMATIC_DWELL_MS);
+
+    return () => clearInterval(timer);
+  }, [cinematic, activePresetName, morphToConfig, config]);
 
   // Auto-hide help after 8 seconds
   useEffect(() => {
@@ -61,7 +170,14 @@ const AppInner: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Keyboard shortcuts — skip when focused on inputs or textareas
+  // Cleanup morph on unmount
+  useEffect(() => {
+    return () => {
+      if (morphRef.current?.raf) cancelAnimationFrame(morphRef.current.raf);
+    };
+  }, []);
+
+  // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -70,8 +186,8 @@ const AppInner: React.FC = () => {
       if (e.code === 'KeyR') { handleReset(); }
       if (e.code === 'KeyS') { handleScreenshot(); }
       if (e.code === 'KeyE') { setShowChart(v => !v); }
+      if (e.code === 'KeyC') { setCinematic(v => !v); }
       if (e.code === 'Escape' && showHelp) { setShowHelp(false); }
-      // Mouse tool shortcuts
       if (e.code === 'Digit1') { setMouseTool('attract'); }
       if (e.code === 'Digit2') { setMouseTool('repel'); }
       if (e.code === 'Digit3') { setMouseTool('spawn'); }
@@ -104,16 +220,27 @@ const AppInner: React.FC = () => {
         simulation={simulation}
         showChart={showChart}
         onToggleChart={() => setShowChart(v => !v)}
+        cinematic={cinematic}
+        onToggleCinematic={() => setCinematic(v => !v)}
+        activePresetName={activePresetName}
+        onMorphToPreset={morphToConfig}
       />
 
-      {/* Floating energy chart (bottom-right) */}
+      {/* Floating energy chart */}
       {showChart && (
         <div className="floating-chart" role="complementary" aria-label="Species energy dynamics chart">
           <DynamicsChart simulation={simulation} visible={showChart} />
         </div>
       )}
 
-      {/* Help overlay — auto-hides */}
+      {/* Cinematic mode indicator */}
+      {cinematic && (
+        <div className="cinematic-badge" aria-live="polite">
+          <span className="cinematic-dot" /> Cinematic · <strong>{activePresetName}</strong>
+        </div>
+      )}
+
+      {/* Help overlay */}
       {showHelp && (
         <div
           className="help-overlay"
@@ -132,11 +259,12 @@ const AppInner: React.FC = () => {
             <kbd>Space</kbd> Pause &nbsp;
             <kbd>R</kbd> Reset &nbsp;
             <kbd>S</kbd> Screenshot &nbsp;
-            <kbd>E</kbd> Energy chart
+            <kbd>E</kbd> Energy
             <br />
             <kbd>1</kbd> Attract &nbsp;
             <kbd>2</kbd> Repel &nbsp;
-            <kbd>3</kbd> Spawn
+            <kbd>3</kbd> Spawn &nbsp;
+            <kbd>C</kbd> Cinematic
           </div>
           <div className="help-dismiss">Click or press Esc to dismiss</div>
         </div>

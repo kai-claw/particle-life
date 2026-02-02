@@ -44,6 +44,10 @@ interface ControlPanelProps {
   simulation: ParticleSimulation | null;
   showChart: boolean;
   onToggleChart: () => void;
+  cinematic: boolean;
+  onToggleCinematic: () => void;
+  activePresetName: string;
+  onMorphToPreset: (config: SimulationConfig, name: string) => void;
 }
 
 const Slider: React.FC<{
@@ -90,6 +94,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   simulation,
   showChart,
   onToggleChart,
+  cinematic,
+  onToggleCinematic,
+  activePresetName,
+  onMorphToPreset,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState<'controls' | 'rules' | 'presets' | 'creative'>('controls');
@@ -117,12 +125,19 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const applyPreset = useCallback(
     (preset: { config: Partial<SimulationConfig>; name: string }) => {
       if (preset.name === 'Random') {
+        // Random: instant change (can't morph to unknown rules)
         onConfigChange({ ...config, ...preset.config, rules: randomRules() });
       } else {
-        onConfigChange({ ...config, ...preset.config });
+        // Smooth morph to preset
+        const targetConfig: SimulationConfig = {
+          ...config,
+          ...preset.config,
+          rules: (preset.config.rules ?? config.rules).map(r => [...r]),
+        };
+        onMorphToPreset(targetConfig, preset.name);
       }
     },
-    [config, onConfigChange]
+    [config, onConfigChange, onMorphToPreset]
   );
 
   const fps = simulation?.fps ?? 0;
@@ -382,18 +397,37 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
         {activeTab === 'presets' && (
           <div className="presets-tab" role="tabpanel" id="tabpanel-presets" aria-labelledby="tab-presets">
+            {/* Cinematic autoplay toggle */}
+            <div className="cinematic-toggle">
+              <div className="cinematic-info">
+                <span className="cinematic-label">🎬 Cinematic</span>
+                <span className="cinematic-sublabel">Auto-morphs through presets</span>
+              </div>
+              <button
+                className={`toggle-btn ${cinematic ? 'toggle-on' : ''}`}
+                onClick={onToggleCinematic}
+                aria-pressed={cinematic}
+              >
+                {cinematic ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
             {PRESETS.map((preset, i) => (
               <button
                 key={i}
-                className="preset-card"
+                className={`preset-card ${activePresetName === preset.name ? 'preset-active' : ''}`}
                 onClick={() => applyPreset(preset)}
                 aria-label={`${preset.name}: ${preset.description}`}
+                aria-current={activePresetName === preset.name ? 'true' : undefined}
               >
                 <span className="preset-emoji" aria-hidden="true">{preset.emoji}</span>
                 <div className="preset-info">
                   <div className="preset-name">{preset.name}</div>
                   <div className="preset-desc">{preset.description}</div>
                 </div>
+                {activePresetName === preset.name && (
+                  <span className="preset-active-dot" aria-hidden="true" />
+                )}
               </button>
             ))}
           </div>
