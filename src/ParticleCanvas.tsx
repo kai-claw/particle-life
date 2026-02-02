@@ -209,7 +209,7 @@ export const ParticleCanvas: React.FC<ParticleCanvasProps> = ({
         height: '100vh',
         background: '#000',
         zIndex: 1,
-        cursor: mouseTool === 'spawn' ? 'crosshair' : mouseTool === 'repel' ? 'not-allowed' : 'grab',
+        cursor: mouseTool === 'spawn' ? 'crosshair' : mouseTool === 'repel' ? 'crosshair' : 'default',
         touchAction: 'none', // prevent browser gestures on canvas
       }}
     />

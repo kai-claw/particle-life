@@ -223,34 +223,41 @@ export class ParticleRenderer {
   /** Draw a visual indicator around the mouse cursor when force is active */
   private renderMouseCursor(ctx: CanvasRenderingContext2D, mf: MouseForce) {
     const isAttract = mf.strength > 0;
+
+    // Subtle breathing pulse for organic feel
+    const t = performance.now() * 0.003;
+    const breathe = 0.85 + Math.sin(t) * 0.15;
+    const radiusPulse = mf.radius + Math.sin(t * 1.3) * 3;
+
     ctx.save();
 
-    // Outer ring
+    // Outer ring — breathing dashed circle with rotating dash
     ctx.strokeStyle = isAttract
-      ? 'rgba(51, 255, 119, 0.4)'
-      : 'rgba(255, 85, 102, 0.4)';
+      ? `rgba(51, 255, 119, ${(0.35 * breathe).toFixed(3)})`
+      : `rgba(255, 85, 102, ${(0.35 * breathe).toFixed(3)})`;
     ctx.lineWidth = 1.5;
     ctx.setLineDash([6, 4]);
+    ctx.lineDashOffset = -t * 12;
     ctx.beginPath();
-    ctx.arc(mf.x, mf.y, mf.radius, 0, Math.PI * 2);
+    ctx.arc(mf.x, mf.y, radiusPulse, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Inner glow
-    const grad = ctx.createRadialGradient(mf.x, mf.y, 0, mf.x, mf.y, mf.radius);
+    // Inner glow — breathing gradient
+    const grad = ctx.createRadialGradient(mf.x, mf.y, 0, mf.x, mf.y, radiusPulse);
     grad.addColorStop(0, isAttract
-      ? 'rgba(51, 255, 119, 0.08)'
-      : 'rgba(255, 85, 102, 0.08)');
+      ? `rgba(51, 255, 119, ${(0.1 * breathe).toFixed(3)})`
+      : `rgba(255, 85, 102, ${(0.1 * breathe).toFixed(3)})`);
     grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = grad;
+    ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.arc(mf.x, mf.y, mf.radius, 0, Math.PI * 2);
+    ctx.arc(mf.x, mf.y, radiusPulse, 0, Math.PI * 2);
     ctx.fill();
 
     // Center crosshair
-    ctx.setLineDash([]);
     ctx.strokeStyle = isAttract
-      ? 'rgba(51, 255, 119, 0.6)'
-      : 'rgba(255, 85, 102, 0.6)';
+      ? `rgba(51, 255, 119, ${(0.5 * breathe).toFixed(3)})`
+      : `rgba(255, 85, 102, ${(0.5 * breathe).toFixed(3)})`;
     ctx.lineWidth = 1;
     const cs = 8;
     ctx.beginPath();
@@ -259,6 +266,14 @@ export class ParticleRenderer {
     ctx.moveTo(mf.x, mf.y - cs);
     ctx.lineTo(mf.x, mf.y + cs);
     ctx.stroke();
+
+    // Small center dot
+    ctx.fillStyle = isAttract
+      ? `rgba(51, 255, 119, ${(0.6 * breathe).toFixed(3)})`
+      : `rgba(255, 85, 102, ${(0.6 * breathe).toFixed(3)})`;
+    ctx.beginPath();
+    ctx.arc(mf.x, mf.y, 2, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.restore();
   }
