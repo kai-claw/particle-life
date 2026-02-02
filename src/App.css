@@ -794,6 +794,38 @@ input[type="range"]:active::-moz-range-thumb {
   animation: pulse-dot 1.5s ease-in-out infinite;
 }
 
+/* ── Performance Warning Badge ────────────────── */
+.perf-warning {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 20;
+  background: rgba(40, 20, 10, 0.85);
+  border: 1px solid rgba(255, 170, 50, 0.35);
+  border-radius: 10px;
+  padding: 6px 14px;
+  font-size: 11px;
+  color: #ffaa33;
+  backdrop-filter: blur(10px);
+  animation: perfWarnIn 0.4s ease-out both;
+  pointer-events: none;
+}
+
+@keyframes perfWarnIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .perf-warning { animation: none; }
+}
+
 /* ── Creative Tab ────────────────────────────── */
 .section-label {
   font-size: 11px;

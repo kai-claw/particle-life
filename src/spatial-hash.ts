@@ -4,6 +4,9 @@ import type { Particle } from './types';
  * Spatial hash grid for O(n) neighbor lookups instead of O(n²).
  * Supports toroidal wrapping — particles near edges correctly find
  * neighbors on the opposite side of the world.
+ *
+ * Performance: cell arrays are pooled and reused across frames to
+ * eliminate per-frame garbage collection pressure from Map clear/recreate.
  */
 export class SpatialHash {
   private cellSize: number;
@@ -13,6 +16,10 @@ export class SpatialHash {
 
   // Reusable result buffer to avoid per-call allocations
   private resultBuffer: Particle[] = [];
+
+  // Cell array pool — reuse arrays instead of creating new ones each frame
+  private cellPool: Particle[][] = [];
+  private cellPoolIndex: number = 0;
 
   constructor(cellSize: number) {
     this.cellSize = Math.max(cellSize, 1);
@@ -25,8 +32,23 @@ export class SpatialHash {
     this.cellsH = Math.max(1, Math.ceil(h / this.cellSize));
   }
 
+  /**
+   * Clear for reuse — recycle all cell arrays back to pool instead of
+   * discarding them. Eliminates thousands of array allocations per frame.
+   */
   clear() {
+    // Return all active cell arrays to pool
+    this.grid.forEach((list) => {
+      list.length = 0; // Reset length but keep allocated backing store
+      if (this.cellPoolIndex < this.cellPool.length) {
+        this.cellPool[this.cellPoolIndex++] = list;
+      } else {
+        this.cellPool.push(list);
+        this.cellPoolIndex++;
+      }
+    });
     this.grid.clear();
+    this.cellPoolIndex = 0; // Reset pool cursor for next frame's allocation
   }
 
   private key(cx: number, cy: number): number {
@@ -40,7 +62,13 @@ export class SpatialHash {
     const k = this.key(cx, cy);
     let list = this.grid.get(k);
     if (!list) {
-      list = [];
+      // Grab from pool or create new
+      if (this.cellPoolIndex < this.cellPool.length) {
+        list = this.cellPool[this.cellPoolIndex++];
+        list.length = 0;
+      } else {
+        list = [];
+      }
       this.grid.set(k, list);
     }
     list.push(p);

@@ -246,6 +246,13 @@ const AppInner: React.FC = () => {
         </div>
       )}
 
+      {/* Performance warning — auto-shows when simulation auto-degrades */}
+      {simulation?.isPerformanceDegraded && (
+        <div className="perf-warning" role="status" aria-live="polite">
+          ⚡ {simulation.performanceWarning || 'Reduced quality'}
+        </div>
+      )}
+
       {/* Help overlay */}
       {showHelp && (
         <div

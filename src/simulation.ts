@@ -36,8 +36,18 @@ export class ParticleSimulation {
   // Mouse interaction force
   mouseForce: MouseForce = { active: false, x: 0, y: 0, radius: 150, strength: 0 };
 
-  // Energy history for species chart (ring buffer, last 200 snapshots)
-  private energyHistory: number[][] = [];
+  // Adaptive performance degradation
+  private lowFpsFrames: number = 0;
+  private highFpsFrames: number = 0;
+  /** True when FPS has been critically low (<30) for sustained period */
+  isPerformanceDegraded: boolean = false;
+  /** Human-readable performance status for UI */
+  performanceWarning: string = '';
+
+  // Energy history for species chart — true ring buffer (no shift())
+  private energyRing: number[][] = [];
+  private energyRingHead = 0;       // Write cursor
+  private energyRingCount = 0;      // Current fill level
   private energyHistoryMax = 200;
   private energySampleCounter = 0;
 
@@ -255,13 +265,35 @@ export class ParticleSimulation {
   update() {
     if (!this.spatialHash || this.width === 0) return;
 
-    // FPS tracking
+    // FPS tracking + adaptive quality monitoring
     this.frameCount++;
     const now = performance.now();
     if (now - this.lastFpsTime >= 1000) {
       this.fps = this.frameCount;
       this.frameCount = 0;
       this.lastFpsTime = now;
+
+      // Adaptive degradation: sustained <30fps triggers quality reduction
+      if (this.fps < 30) {
+        this.lowFpsFrames++;
+        this.highFpsFrames = 0;
+        if (this.lowFpsFrames >= 3 && !this.isPerformanceDegraded) {
+          this.isPerformanceDegraded = true;
+          this.performanceWarning = `Auto-reduced quality (${this.fps} FPS)`;
+        }
+      } else if (this.fps >= 45) {
+        this.highFpsFrames++;
+        this.lowFpsFrames = 0;
+        // Recover after 5 seconds of stable >45fps
+        if (this.highFpsFrames >= 5 && this.isPerformanceDegraded) {
+          this.isPerformanceDegraded = false;
+          this.performanceWarning = '';
+        }
+      } else {
+        // 30-45fps: stable, clear counters
+        this.lowFpsFrames = 0;
+        this.highFpsFrames = 0;
+      }
     }
 
     const hash = this.spatialHash;
@@ -465,28 +497,46 @@ export class ParticleSimulation {
     }
   }
 
-  /** Compute average kinetic energy per species */
+  // Pre-allocated typed arrays for energy sampling (avoid per-call alloc)
+  private energyCounts = new Float64Array(PARTICLE_TYPES);
+  private energySums = new Float64Array(PARTICLE_TYPES);
+
+  /** Compute average kinetic energy per species (ring buffer, zero shift) */
   private sampleEnergy() {
-    const counts = new Float64Array(PARTICLE_TYPES);
-    const energy = new Float64Array(PARTICLE_TYPES);
+    this.energyCounts.fill(0);
+    this.energySums.fill(0);
     for (let i = 0; i < this.particles.length; i++) {
       const p = this.particles[i];
-      counts[p.type]++;
-      energy[p.type] += Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+      this.energyCounts[p.type]++;
+      this.energySums[p.type] += Math.sqrt(p.vx * p.vx + p.vy * p.vy);
     }
-    const snapshot: number[] = [];
+
+    // Reuse or create snapshot array at ring position
+    let snapshot = this.energyRing[this.energyRingHead];
+    if (!snapshot) {
+      snapshot = new Array(PARTICLE_TYPES);
+      this.energyRing[this.energyRingHead] = snapshot;
+    }
     for (let t = 0; t < PARTICLE_TYPES; t++) {
-      snapshot.push(counts[t] > 0 ? energy[t] / counts[t] : 0);
+      snapshot[t] = this.energyCounts[t] > 0 ? this.energySums[t] / this.energyCounts[t] : 0;
     }
-    this.energyHistory.push(snapshot);
-    if (this.energyHistory.length > this.energyHistoryMax) {
-      this.energyHistory.shift();
-    }
+
+    this.energyRingHead = (this.energyRingHead + 1) % this.energyHistoryMax;
+    if (this.energyRingCount < this.energyHistoryMax) this.energyRingCount++;
   }
 
-  /** Get species energy history for DynamicsChart */
+  /** Get species energy history for DynamicsChart (ordered oldest→newest) */
   getEnergyHistory(): number[][] {
-    return this.energyHistory;
+    if (this.energyRingCount < this.energyHistoryMax) {
+      // Ring hasn't wrapped yet — return in order
+      return this.energyRing.slice(0, this.energyRingCount);
+    }
+    // Ring has wrapped — read from head (oldest) through buffer
+    const result: number[][] = [];
+    for (let i = 0; i < this.energyHistoryMax; i++) {
+      result.push(this.energyRing[(this.energyRingHead + i) % this.energyHistoryMax]);
+    }
+    return result;
   }
 
   /** Delegate rendering to the dedicated ParticleRenderer */
@@ -501,6 +551,7 @@ export class ParticleSimulation {
       this.maxSpeedObserved,
       this.neighborCounts,
       this.spatialHash,
+      this.isPerformanceDegraded,
     );
   }
 
