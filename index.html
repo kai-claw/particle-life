@@ -2,13 +2,103 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/particle-life/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>particle-life</title>
-    <script type="module" crossorigin src="/particle-life/assets/index-CoelePEU.js"></script>
-    <link rel="stylesheet" crossorigin href="/particle-life/assets/index-BzKQCqv7.css">
+    <title>Particle Life — Emergent Behavior Simulator</title>
+    <meta name="description" content="Watch colored particles self-organize into living cells, ecosystems, and galaxies through simple attraction and repulsion rules. Interactive real-time simulation with configurable force matrices." />
+    <meta name="author" content="kai-claw" />
+    <meta name="keywords" content="particle life, emergent behavior, artificial life, simulation, interactive, canvas, react, typescript" />
+    <link rel="canonical" href="https://kai-claw.github.io/particle-life/" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Particle Life — Emergent Behavior Simulator" />
+    <meta property="og:description" content="Colored particles self-organize into living structures through configurable attraction and repulsion rules." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://kai-claw.github.io/particle-life/" />
+    <meta property="og:site_name" content="Particle Life" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Particle Life — Emergent Behavior Simulator" />
+    <meta name="twitter:description" content="Colored particles self-organize into living structures through configurable attraction and repulsion rules." />
+
+    <meta name="theme-color" content="#000000" />
+    <link rel="icon" type="image/svg+xml" href="/particle-life/favicon.svg" />
+
+    <!-- Inline loading spinner (shows before React mounts) -->
+    <style>
+      body { margin: 0; background: #000; }
+      .loading-spinner {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+        z-index: 9999;
+        transition: opacity 0.4s ease;
+      }
+      .loading-spinner.hidden { opacity: 0; pointer-events: none; }
+      .spinner-dots {
+        display: flex;
+        gap: 8px;
+      }
+      .spinner-dots span {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        animation: pulse 1.4s infinite ease-in-out;
+      }
+      .spinner-dots span:nth-child(1) { background: #ff3344; animation-delay: 0s; }
+      .spinner-dots span:nth-child(2) { background: #33ff77; animation-delay: 0.2s; }
+      .spinner-dots span:nth-child(3) { background: #3388ff; animation-delay: 0.4s; }
+      .spinner-dots span:nth-child(4) { background: #ffdd33; animation-delay: 0.6s; }
+      .spinner-dots span:nth-child(5) { background: #33ddff; animation-delay: 0.8s; }
+      .spinner-dots span:nth-child(6) { background: #ff44dd; animation-delay: 1.0s; }
+      .loading-text {
+        color: #666;
+        font-family: system-ui, sans-serif;
+        font-size: 13px;
+        margin-top: 16px;
+        letter-spacing: 0.5px;
+      }
+      @keyframes pulse {
+        0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; }
+        40% { transform: scale(1.0); opacity: 1; }
+      }
+    </style>
+    <script type="module" crossorigin src="/particle-life/assets/index-D8iKRJyD.js"></script>
+    <link rel="stylesheet" crossorigin href="/particle-life/assets/index-B0WKVeOT.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="loading-spinner" id="loading">
+        <div class="spinner-dots">
+          <span></span><span></span><span></span>
+          <span></span><span></span><span></span>
+        </div>
+        <div class="loading-text">Initializing particles…</div>
+      </div>
+    </div>
+    <noscript>
+      <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#000;color:#aaa;font-family:system-ui,sans-serif;text-align:center;padding:2rem;">
+        <div>
+          <h1 style="font-size:1.5rem;margin-bottom:1rem;">🌊 Particle Life</h1>
+          <p>This interactive simulation requires JavaScript to run.</p>
+        </div>
+      </div>
+    </noscript>
+    <script>
+      // Hide loading spinner once React mounts
+      const obs = new MutationObserver(() => {
+        const root = document.getElementById('root');
+        if (root && root.querySelector('canvas')) {
+          const spinner = document.getElementById('loading');
+          if (spinner) { spinner.classList.add('hidden'); setTimeout(() => spinner.remove(), 500); }
+          obs.disconnect();
+        }
+      });
+      obs.observe(document.getElementById('root'), { childList: true, subtree: true });
+    </script>
   </body>
 </html>
